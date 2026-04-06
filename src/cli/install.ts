@@ -33,6 +33,7 @@ export async function executeInstall(
     const vencordPath = config.vencord.path ?? await detectVencordPath(fs);
     if (!vencordPath) {
         if (options.json) {
+            process.exitCode = 1;
             writeJson(jsonError("Could not find Vencord source path. Set vencord.path in config or VENPM_VENCORD_PATH env var."));
             return;
         }
@@ -84,6 +85,7 @@ export async function executeInstall(
             ? `Plugin "${pluginName}" not found in repo "${options.from}"`
             : `Plugin "${pluginName}" not found in any configured repo`;
         if (options.json) {
+            process.exitCode = 1;
             writeJson(jsonError(msg));
             return;
         }
@@ -125,6 +127,7 @@ export async function executeInstall(
     } catch (err) {
         if (err instanceof ResolverError) {
             if (options.json) {
+                process.exitCode = 1;
                 writeJson(jsonError(err.message));
                 return;
             }
@@ -179,6 +182,7 @@ export async function executeInstall(
         } catch (err) {
             const msg = `Failed to install ${entry.name}: ${err instanceof Error ? err.message : err}`;
             if (options.json) {
+                process.exitCode = 1;
                 writeJson(jsonError(msg));
                 return;
             }

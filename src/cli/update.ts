@@ -21,6 +21,7 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
     const installedEntries = Object.entries(lockfile.installed);
 
     if (installedEntries.length === 0) {
+        if (options.json) { writeJson(jsonSuccess({ updated: [], skipped: [] })); return; }
         ctx.logger.info("No plugins installed.");
         return;
     }
@@ -32,6 +33,7 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
         if (!info) {
             if (options.json) {
                 writeJson(jsonError(`Plugin "${pluginName}" is not installed.`));
+                process.exitCode = 1;
                 return;
             }
             ctx.logger.error(`Plugin "${pluginName}" is not installed.`);
@@ -58,6 +60,7 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
     });
 
     if (updateable.length === 0) {
+        if (options.json) { writeJson(jsonSuccess({ updated: [], skipped: [] })); return; }
         ctx.logger.info("Nothing to update.");
         return;
     }
@@ -165,10 +168,11 @@ export function registerUpdateCommand(program: Command): void {
         .command("update [plugin]")
         .description("Update a plugin or all plugins")
         .action(async (plugin: string | undefined) => {
-            const parentOpts = program.opts<{ config?: string; verbose?: boolean; yes?: boolean }>();
+            const parentOpts = program.opts<{ config?: string; verbose?: boolean; yes?: boolean; json?: boolean }>();
             const globalOptions: GlobalOptions = {
                 config: parentOpts.config,
                 verbose: parentOpts.verbose,
+                json: parentOpts.json,
             };
             const ctx = createRealIOContext({ ...globalOptions, yes: parentOpts.yes });
             await executeUpdate(ctx, plugin, globalOptions);

@@ -1,7 +1,7 @@
 import { join, dirname, basename } from "node:path";
 import type { Command } from "commander";
 import type { FileSystem, IOContext, GlobalOptions } from "../core/types.js";
-import { jsonSuccess, writeJson } from "../core/json.js";
+import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -271,15 +271,26 @@ export function registerCreateCommand(program: Command): void {
         .option("--css", "Add style.css")
         .option("--native", "Add native.ts")
         .action(async (targetPath: string, cmdOptions: { tsx?: boolean; css?: boolean; native?: boolean }) => {
+            const parentOpts = program.opts<{ config?: string; verbose?: boolean; json?: boolean; yes?: boolean }>();
             const globalOptions: GlobalOptions = {
-                config: program.opts<{ config?: string }>().config,
-                verbose: program.opts<{ verbose?: boolean }>().verbose,
+                config: parentOpts.config,
+                verbose: parentOpts.verbose,
+                json: parentOpts.json,
             };
             const ctx = createRealIOContext({
                 ...globalOptions,
-                yes: program.opts<{ yes?: boolean }>().yes,
+                yes: parentOpts.yes,
             });
             const createOptions: CreateOptions = { ...globalOptions, ...cmdOptions };
-            await executeCreate(ctx, targetPath, createOptions);
+            try {
+                await executeCreate(ctx, targetPath, createOptions);
+            } catch (err) {
+                if (globalOptions.json) {
+                    writeJson(jsonError((err as Error).message));
+                } else {
+                    ctx.logger.error((err as Error).message);
+                }
+                process.exitCode = 1;
+            }
         });
 }

@@ -260,12 +260,11 @@ describe("--json output", () => {
 
     it("update outputs JSON with empty updated array when nothing installed", async () => {
         await executeUpdate(ctx, undefined, { json: true });
-        // When no plugins installed, it logs info and returns before JSON output
-        // Actually, it returns early with "No plugins installed." — no JSON output
-        // The JSON branch only fires after the update loop completes
-        // So for empty lockfile, there's no JSON output — the human-readable path runs
-        // This is expected behavior: update with no plugins doesn't output JSON
-        expect(stdout.captured.length).toBe(0);
+        expect(stdout.captured.length).toBe(1);
+        const output = JSON.parse(stdout.captured[0]);
+        expect(output.success).toBe(true);
+        expect(output.data.updated).toEqual([]);
+        expect(output.data.skipped).toEqual([]);
     });
 
     it("update outputs JSON with updated/skipped for installed plugins", async () => {

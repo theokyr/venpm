@@ -10,6 +10,10 @@ import {
 } from "../core/detect.js";
 import { jsonSuccess, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
+import { createRequire } from "node:module";
+
+const _require = createRequire(import.meta.url);
+const { version: venpmVersion } = _require("../../package.json") as { version: string };
 
 export function registerDoctorCommand(program: Command): void {
     program
@@ -42,7 +46,7 @@ export function registerDoctorCommand(program: Command): void {
                     vencordPath,
                     discordBinary,
                     repos: repoCount,
-                    venpmVersion: "0.1.0",
+                    venpmVersion,
                 }));
                 return;
             }

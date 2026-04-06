@@ -18,6 +18,7 @@ export async function executeUninstall(ctx: IOContext, pluginName: string, optio
 
     if (!isInstalled(lockfile, pluginName)) {
         if (options.json) {
+            process.exitCode = 1;
             writeJson(jsonError(`Plugin "${pluginName}" is not installed.`));
             return;
         }
@@ -66,10 +67,11 @@ export function registerUninstallCommand(program: Command): void {
         .description("Uninstall a plugin")
         .option("-y, --yes", "Skip confirmation prompt")
         .action(async (plugin: string, cmdOptions: { yes?: boolean }) => {
-            const parentOpts = program.opts<{ config?: string; verbose?: boolean; yes?: boolean }>();
+            const parentOpts = program.opts<{ config?: string; verbose?: boolean; yes?: boolean; json?: boolean }>();
             const globalOptions: GlobalOptions = {
                 config: parentOpts.config,
                 verbose: parentOpts.verbose,
+                json: parentOpts.json,
             };
             const ctx = createRealIOContext({ ...globalOptions, yes: parentOpts.yes || cmdOptions.yes });
             await executeUninstall(ctx, plugin, globalOptions);
