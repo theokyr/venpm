@@ -18,7 +18,8 @@ export function registerValidateCommand(program: Command): void {
                 raw = await ctx.fs.readFile(targetPath, "utf-8");
             } catch {
                 ctx.logger.error(`Cannot read file: ${targetPath}`);
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
 
             let data: unknown;
@@ -26,7 +27,8 @@ export function registerValidateCommand(program: Command): void {
                 data = JSON.parse(raw);
             } catch (err) {
                 ctx.logger.error(`Invalid JSON: ${(err as Error).message}`);
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
 
             const result = validateIndex(data);
@@ -36,7 +38,8 @@ export function registerValidateCommand(program: Command): void {
                 for (const e of result.errors) {
                     ctx.logger.error(`  ${e}`);
                 }
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
 
             if (options.strict) {
@@ -90,7 +93,8 @@ export function registerValidateCommand(program: Command): void {
                     for (const e of strictErrors) {
                         ctx.logger.error(`  ${e}`);
                     }
-                    process.exit(1);
+                    process.exitCode = 1;
+                    return;
                 }
             }
 

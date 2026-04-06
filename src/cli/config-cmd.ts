@@ -70,7 +70,8 @@ export function registerConfigCommand(program: Command): void {
             const value = getNestedValue(cfg, keys);
             if (value === undefined) {
                 ctx.logger.error(`Key "${key}" not found in config`);
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
             console.log(JSON.stringify(value, null, 2));
         });

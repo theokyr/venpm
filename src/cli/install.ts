@@ -150,7 +150,7 @@ export async function executeInstall(
                 version: entry.version,
                 repo: entry.repo,
                 method: result.method,
-                pinned: false,
+                pinned: options.version !== undefined,
                 git_ref: result.git_ref,
                 installed_at: new Date().toISOString(),
                 path: result.path,
@@ -223,7 +223,7 @@ export function registerInstallCommand(program: Command): void {
         .option("--no-build", "Skip Vencord rebuild")
         .option("--rebuild", "Force Vencord rebuild")
         .action(async (pluginName: string, opts: Record<string, unknown>) => {
-            const globalOpts = program.opts<{ config?: string; verbose?: boolean; noColor?: boolean; yes?: boolean }>();
+            const globalOpts = program.opts<{ config?: string; verbose?: boolean; yes?: boolean }>();
             const ctx = createRealIOContext({ ...globalOpts });
             const options: InstallOptions = {
                 ...globalOpts,

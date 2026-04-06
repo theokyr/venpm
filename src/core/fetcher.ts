@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { writeFile as writeFileRaw, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { extract } from "tar";
 import type { FileSystem, GitClient, HttpClient, InstallPlanEntry } from "./types.js";
 import type { FetchMethod } from "./types.js";
 
@@ -75,10 +78,13 @@ export async function fetchViaTarball(
         );
     }
 
-    // Download the buffer and ensure the destination directory exists.
-    // Actual tar extraction is handled by the CLI layer.
-    await response.arrayBuffer();
+    // Download the buffer, write to a temp file, extract, then clean up.
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const tmpPath = join(tmpdir(), `venpm-tarball-${randomUUID()}.tar.gz`);
+    await writeFileRaw(tmpPath, buffer);
     await fs.mkdir(dest, { recursive: true });
+    await extract({ file: tmpPath, cwd: dest, strip: 1 });
+    await unlink(tmpPath);
 
     return { method: "tarball" };
 }

@@ -110,6 +110,18 @@ export function buildDependencyGraph(indexes: PluginIndex[], pluginName: string)
 
 // ─── Method Selection ─────────────────────────────────────────────────────────
 
+export function selectMethodFromSource(
+    source: PluginEntry["source"],
+    gitAvailable: boolean,
+): FetchMethod {
+    if (gitAvailable && source.git) return "git";
+    if (source.tarball) return "tarball";
+    if (source.local) return "local";
+    throw new ResolverError(
+        `No suitable fetch method available (git available: ${gitAvailable}, source: ${JSON.stringify(source)})`,
+    );
+}
+
 function selectMethod(
     entry: PluginEntry,
     gitAvailable: boolean,

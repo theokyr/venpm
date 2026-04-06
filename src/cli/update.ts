@@ -7,6 +7,7 @@ import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { fetchPlugin } from "../core/fetcher.js";
 import { createRealIOContext } from "./context.js";
+import { selectMethodFromSource } from "../core/resolver.js";
 
 export async function executeUpdate(ctx: IOContext, pluginName: string | undefined, options: GlobalOptions): Promise<void> {
     const configPath = options.config ?? getConfigPath();
@@ -28,7 +29,8 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
         const info = getInstalled(lockfile, pluginName);
         if (!info) {
             ctx.logger.error(`Plugin "${pluginName}" is not installed.`);
-            process.exit(1);
+            process.exitCode = 1;
+            return;
         }
         targets = [pluginName];
     } else {
@@ -93,13 +95,16 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
         // Remove from lockfile before re-fetching
         lockfile = removeInstalled(lockfile, name);
 
+        // Resolve fetch method from current source metadata
+        const resolvedMethod = selectMethodFromSource(match.entry.source, gitAvailable);
+
         // Fetch the new version
         const planEntry: InstallPlanEntry = {
             name,
             version: latestVersion,
             repo: match.repoName,
             source: match.entry.source,
-            method: installedInfo.method,
+            method: resolvedMethod,
             isDependency: false,
         };
 
@@ -142,12 +147,12 @@ export function registerUpdateCommand(program: Command): void {
         .command("update [plugin]")
         .description("Update a plugin or all plugins")
         .action(async (plugin: string | undefined) => {
+            const parentOpts = program.opts<{ config?: string; verbose?: boolean; yes?: boolean }>();
             const globalOptions: GlobalOptions = {
-                config: program.opts<{ config?: string }>().config,
-                verbose: program.opts<{ verbose?: boolean }>().verbose,
-                noColor: program.opts<{ noColor?: boolean }>().noColor,
+                config: parentOpts.config,
+                verbose: parentOpts.verbose,
             };
-            const ctx = createRealIOContext(globalOptions);
+            const ctx = createRealIOContext({ ...globalOptions, yes: parentOpts.yes });
             await executeUpdate(ctx, plugin, globalOptions);
         });
 }

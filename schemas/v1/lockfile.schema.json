@@ -19,7 +19,13 @@
       "type": "object",
       "required": ["version", "repo", "method", "pinned", "installed_at"],
       "properties": {
-        "version": { "type": "string", "description": "Installed semver version", "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.]+)?$" },
+        "version": {
+          "description": "Installed version (semver or 'local' for local installs)",
+          "oneOf": [
+            { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.]+)?$" },
+            { "type": "string", "const": "local" }
+          ]
+        },
         "repo": { "type": "string", "description": "Repository name this plugin was installed from" },
         "method": {
           "type": "string",

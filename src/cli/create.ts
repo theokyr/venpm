@@ -254,7 +254,8 @@ export async function executeCreate(
         const ancestorPluginsJson = await findAncestorPluginsJson(ctx.fs, targetPath);
         if (!ancestorPluginsJson) {
             ctx.logger.error("Could not locate ancestor plugins.json");
-            process.exit(1);
+            process.exitCode = 1;
+            return;
         }
         await scaffoldPlugin(ctx, targetPath, options, ancestorPluginsJson);
     }
@@ -273,7 +274,6 @@ export function registerCreateCommand(program: Command): void {
             const globalOptions: GlobalOptions = {
                 config: program.opts<{ config?: string }>().config,
                 verbose: program.opts<{ verbose?: boolean }>().verbose,
-                noColor: program.opts<{ noColor?: boolean }>().noColor,
             };
             const ctx = createRealIOContext({
                 ...globalOptions,

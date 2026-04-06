@@ -35,7 +35,15 @@ function makeMockFs(files: Record<string, string> = {}): FileSystem & { written:
 function makeCtx(fs: FileSystem, confirmResult = true): IOContext {
     return {
         fs,
-        http: { fetch: vi.fn() as never },
+        http: {
+            fetch: vi.fn(async () => ({
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({ name: "kamaras", description: "", plugins: {} }),
+                json: async () => ({ name: "kamaras", description: "", plugins: {} }),
+                arrayBuffer: async () => new ArrayBuffer(0),
+            })),
+        },
         git: {
             available: vi.fn(async () => true),
             clone: vi.fn(async () => {}),
@@ -124,13 +132,14 @@ describe("executeUninstall", () => {
             [LOCK_PATH]: JSON.stringify(lockfileEmpty),
         });
         const ctx = makeCtx(fs, true);
-        const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("process.exit"); });
+        const originalExitCode = process.exitCode;
 
-        await expect(executeUninstall(ctx, "channelTabs", { config: CONFIG_PATH })).rejects.toThrow("process.exit");
+        await executeUninstall(ctx, "channelTabs", { config: CONFIG_PATH });
+
         expect(ctx.logger.error).toHaveBeenCalledWith(expect.stringContaining("channelTabs"));
-        expect(exitSpy).toHaveBeenCalledWith(1);
+        expect(process.exitCode).toBe(1);
 
-        exitSpy.mockRestore();
+        process.exitCode = originalExitCode;
     });
 
     it("does not remove the plugin when confirmation is denied", async () => {

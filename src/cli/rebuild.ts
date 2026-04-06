@@ -18,7 +18,8 @@ export function registerRebuildCommand(program: Command): void {
             const vencordPath = config.vencord.path ?? await detectVencordPath(ctx.fs);
             if (!vencordPath) {
                 ctx.logger.error("Vencord path not found. Set vencord.path in config or $VENPM_VENCORD_PATH.");
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
 
             // Resolve Discord binary for optional restart
@@ -55,7 +56,8 @@ export function registerRebuildCommand(program: Command): void {
                 }
             } catch (err) {
                 ctx.logger.error(`Build failed: ${(err as Error).message}`);
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
         });
 }

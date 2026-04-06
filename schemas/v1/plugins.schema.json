@@ -47,13 +47,14 @@
     },
     "pluginSource": {
       "type": "object",
-      "description": "Where to fetch the plugin. At least one of git or tarball must be present.",
+      "description": "Where to fetch the plugin. At least one of git, tarball, or local must be present.",
       "properties": {
         "git": { "type": "string", "description": "Git clone URL" },
         "path": { "type": "string", "description": "Subdirectory within the git repo (for monorepos)" },
-        "tarball": { "type": "string", "format": "uri", "description": "Direct download URL for tarball" }
+        "tarball": { "type": "string", "format": "uri", "description": "Direct download URL for tarball" },
+        "local": { "type": "string", "description": "Local filesystem path (developer workflow)" }
       },
-      "anyOf": [{ "required": ["git"] }, { "required": ["tarball"] }],
+      "anyOf": [{ "required": ["git"] }, { "required": ["tarball"] }, { "required": ["local"] }],
       "additionalProperties": false
     },
     "versionEntry": {

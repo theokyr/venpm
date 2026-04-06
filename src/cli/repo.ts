@@ -29,7 +29,8 @@ export function registerRepoCommand(program: Command): void {
             const existing = config.repos.find(r => r.name === name);
             if (existing) {
                 ctx.logger.error(`Repository with name "${name}" already exists (${existing.url})`);
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
 
             config.repos.push({ name, url });
@@ -48,7 +49,8 @@ export function registerRepoCommand(program: Command): void {
             const index = config.repos.findIndex(r => r.name === name);
             if (index === -1) {
                 ctx.logger.error(`Repository "${name}" not found`);
-                process.exit(1);
+                process.exitCode = 1;
+                return;
             }
 
             config.repos.splice(index, 1);

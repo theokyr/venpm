@@ -19,6 +19,14 @@
         "2.0.0": { "git_tag": "v2.0.0" }
       }
     },
+    "otherPlugin": {
+      "version": "1.0.0",
+      "description": "A dependency plugin",
+      "authors": [{ "name": "kamaras", "id": "111222333" }],
+      "source": {
+        "git": "https://github.com/example/other-plugin.git"
+      }
+    },
     "tarballPlugin": {
       "version": "0.5.3",
       "description": "A plugin installed via tarball",

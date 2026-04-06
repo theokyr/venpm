@@ -7,6 +7,19 @@ import {
     fetchPlugin,
 } from "../../src/core/fetcher.js";
 
+// Mock tar and fs/promises for tarball extraction so tests don't need real tarballs
+vi.mock("tar", () => ({
+    extract: vi.fn(async () => {}),
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("node:fs/promises")>();
+    return {
+        ...actual,
+        writeFile: vi.fn(async () => {}),
+        unlink: vi.fn(async () => {}),
+    };
+});
+
 // ─── Mock factories ───────────────────────────────────────────────────────────
 
 function makeMockFs(): jest.Mocked<FileSystem> & { _symlinks: Record<string, string>; _dirs: string[] } {

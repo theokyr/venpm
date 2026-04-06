@@ -20,7 +20,6 @@ export interface PluginSource {
 export interface VersionEntry {
     git_tag?: string;
     tarball?: string;
-    sha256?: string;
 }
 
 export interface PluginEntry {
@@ -186,7 +185,6 @@ export interface IOContext {
 export interface GlobalOptions {
     config?: string;
     verbose?: boolean;
-    noColor?: boolean;
 }
 
 export interface InstallOptions extends GlobalOptions {

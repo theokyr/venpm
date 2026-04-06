@@ -13,6 +13,19 @@ import type {
 } from "../../src/core/types.js";
 import { executeInstall } from "../../src/cli/install.js";
 
+// Mock tar and node fs/promises writes so tarball tests don't need real archives
+vi.mock("tar", () => ({
+    extract: vi.fn(async () => {}),
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("node:fs/promises")>();
+    return {
+        ...actual,
+        writeFile: vi.fn(async () => {}),
+        unlink: vi.fn(async () => {}),
+    };
+});
+
 // ─── Mock Index ───────────────────────────────────────────────────────────────
 
 const MOCK_INDEX = {
