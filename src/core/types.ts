@@ -186,10 +186,12 @@ export interface GlobalOptions {
 
 export interface InstallOptions extends GlobalOptions {
     version?: string;
-    pin?: boolean;
-    noDeps?: boolean;
-    rebuild?: RebuildMode;
-    dryRun?: boolean;
+    from?: string;
+    local?: string;
+    git?: boolean;
+    tarball?: boolean;
+    noBuild?: boolean;
+    rebuild?: boolean;
 }
 
 export interface CreateOptions extends GlobalOptions {
