@@ -41,12 +41,13 @@ export function registerUninstallCommand(program: Command): void {
         .description("Uninstall a plugin")
         .option("-y, --yes", "Skip confirmation prompt")
         .action(async (plugin: string, cmdOptions: { yes?: boolean }) => {
+            const parentOpts = program.opts<{ config?: string; verbose?: boolean; noColor?: boolean; yes?: boolean }>();
             const globalOptions: GlobalOptions = {
-                config: program.opts<{ config?: string }>().config,
-                verbose: program.opts<{ verbose?: boolean }>().verbose,
-                noColor: program.opts<{ noColor?: boolean }>().noColor,
+                config: parentOpts.config,
+                verbose: parentOpts.verbose,
+                noColor: parentOpts.noColor,
             };
-            const ctx = createRealIOContext({ ...globalOptions, yes: cmdOptions.yes });
+            const ctx = createRealIOContext({ ...globalOptions, yes: parentOpts.yes || cmdOptions.yes });
             await executeUninstall(ctx, plugin, globalOptions);
         });
 }
