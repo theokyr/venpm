@@ -21,7 +21,7 @@ export async function executeInstall(
     const { fs, http, git, shell, prompter, logger } = ctx;
 
     // 1. Load config and lockfile
-    const configPath = getConfigPath();
+    const configPath = options.config ?? getConfigPath();
     const lockfilePath = getLockfilePath();
 
     const config = await loadConfig(fs, configPath);

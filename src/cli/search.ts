@@ -1,12 +1,12 @@
 import type { Command } from "commander";
-import type { IOContext } from "../core/types.js";
+import type { IOContext, GlobalOptions } from "../core/types.js";
 import { loadConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
 import { fetchAllIndexes, searchPlugins } from "../core/registry.js";
 import { createRealIOContext } from "./context.js";
 
-export async function executeSearch(ctx: IOContext, query: string): Promise<void> {
-    const config = await loadConfig(ctx.fs, getConfigPath());
+export async function executeSearch(ctx: IOContext, query: string, options: GlobalOptions = {}): Promise<void> {
+    const config = await loadConfig(ctx.fs, options.config ?? getConfigPath());
     const indexes = await fetchAllIndexes(ctx.http, config.repos);
 
     for (const fi of indexes) {
@@ -35,7 +35,8 @@ export function registerSearchCommand(program: Command): void {
         .command("search <query>")
         .description("Search for plugins in configured repositories")
         .action(async (query: string) => {
-            const ctx = createRealIOContext(program.opts());
-            await executeSearch(ctx, query);
+            const globalOpts = program.opts<GlobalOptions>();
+            const ctx = createRealIOContext(globalOpts);
+            await executeSearch(ctx, query, globalOpts);
         });
 }
