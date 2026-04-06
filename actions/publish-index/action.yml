@@ -1,0 +1,50 @@
+name: "venpm Publish Index"
+description: "Validate and publish a venpm plugin index as a GitHub Release"
+
+inputs:
+  index-path:
+    description: "Path to plugins.json"
+    required: false
+    default: "plugins.json"
+  strict:
+    description: "Run strict validation (check URLs, deps)"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "18"
+
+    - name: Validate index
+      shell: bash
+      run: |
+        STRICT_FLAG=""
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          STRICT_FLAG="--strict"
+        fi
+        npx venpm validate "${{ inputs.index-path }}" $STRICT_FLAG
+
+    - name: Create plugin tarballs
+      shell: bash
+      run: |
+        PLUGINS_DIR=$(dirname "${{ inputs.index-path }}")/plugins
+        if [ -d "$PLUGINS_DIR" ]; then
+          mkdir -p dist
+          for plugin_dir in "$PLUGINS_DIR"/*/; do
+            plugin_name=$(basename "$plugin_dir")
+            tar -czf "dist/${plugin_name}.tar.gz" -C "$PLUGINS_DIR" "$plugin_name"
+            echo "Created dist/${plugin_name}.tar.gz"
+          done
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: venpm-release
+        path: |
+          ${{ inputs.index-path }}
+          dist/*.tar.gz
