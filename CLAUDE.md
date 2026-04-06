@@ -127,11 +127,11 @@ Files: `config.json`, `venpm-lock.json`, `index-cache.json`
 
 ## Design Spec
 
-Full spec: `~/src/vencord-plugins/docs/superpowers/specs/2026-04-06-venpm-design.md`
+Full spec: see the venpm-docs repository for design documentation.
 
 ## Git
 
-- **Origin:** `git@theo-git:theo/venpm.git`
+- **Origin:** `https://github.com/theokyr/venpm.git`
 - **Branch:** `master`
 
 ## Constraints
