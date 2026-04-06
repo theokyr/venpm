@@ -1,8 +1,10 @@
 import type { Command } from "commander";
+import type { GlobalOptions } from "../core/types.js";
 import { loadConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
 import { detectVencordPath, detectDiscordBinary } from "../core/detect.js";
 import { buildAndDeploy } from "../core/builder.js";
+import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 
 export function registerRebuildCommand(program: Command): void {
@@ -10,13 +12,18 @@ export function registerRebuildCommand(program: Command): void {
         .command("rebuild")
         .description("Rebuild Vencord after plugin changes")
         .action(async () => {
-            const ctx = createRealIOContext(program.opts());
-            const configPath = program.opts().config ?? getConfigPath();
+            const globalOpts = program.opts<GlobalOptions>();
+            const ctx = createRealIOContext(globalOpts);
+            const configPath = globalOpts.config ?? getConfigPath();
             const config = await loadConfig(ctx.fs, configPath);
 
             // Resolve Vencord path
             const vencordPath = config.vencord.path ?? await detectVencordPath(ctx.fs);
             if (!vencordPath) {
+                if (globalOpts.json) {
+                    writeJson(jsonError("Vencord path not found. Set vencord.path in config or $VENPM_VENCORD_PATH."));
+                    return;
+                }
                 ctx.logger.error("Vencord path not found. Set vencord.path in config or $VENPM_VENCORD_PATH.");
                 process.exitCode = 1;
                 return;
@@ -43,6 +50,15 @@ export function registerRebuildCommand(program: Command): void {
                     discordBinary: discordBinary ?? undefined,
                 });
 
+                if (globalOpts.json) {
+                    writeJson(jsonSuccess({
+                        built: true,
+                        deployed: result.deployed,
+                        restarted: shouldRestart && !!discordBinary,
+                    }));
+                    return;
+                }
+
                 ctx.logger.success("Build complete");
 
                 if (result.deployed && result.deployPath) {
@@ -55,6 +71,10 @@ export function registerRebuildCommand(program: Command): void {
                     ctx.logger.info("Discord restarted");
                 }
             } catch (err) {
+                if (globalOpts.json) {
+                    writeJson(jsonError(`Build failed: ${(err as Error).message}`));
+                    return;
+                }
                 ctx.logger.error(`Build failed: ${(err as Error).message}`);
                 process.exitCode = 1;
                 return;

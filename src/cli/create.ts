@@ -1,6 +1,7 @@
 import { join, dirname, basename } from "node:path";
 import type { Command } from "commander";
 import type { FileSystem, IOContext, GlobalOptions } from "../core/types.js";
+import { jsonSuccess, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,7 +61,8 @@ export async function detectCreateMode(
 
 const PLUGINS_JSON_SCHEMA = "https://venpm.dev/schemas/v1/plugins.json";
 
-async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<void> {
+async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<string[]> {
+    const createdFiles: string[] = [];
     const name = basename(targetPath).replace(/[^a-zA-Z0-9_-]/g, "-");
 
     // Create directory structure
@@ -79,6 +81,7 @@ async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<void> {
         join(targetPath, "plugins.json"),
         JSON.stringify(pluginsJson, null, 2) + "\n",
     );
+    createdFiles.push("plugins.json");
     ctx.logger.success(`Created plugins.json`);
 
     // .github/workflows/publish.yml
@@ -103,6 +106,7 @@ async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<void> {
         "",
     ].join("\n");
     await ctx.fs.writeFile(join(targetPath, ".github", "workflows", "publish.yml"), publishYml);
+    createdFiles.push(".github/workflows/publish.yml");
     ctx.logger.success(`Created .github/workflows/publish.yml`);
 
     // README.md
@@ -126,9 +130,11 @@ async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<void> {
         "",
     ].join("\n");
     await ctx.fs.writeFile(join(targetPath, "README.md"), readme);
+    createdFiles.push("README.md");
     ctx.logger.success(`Created README.md`);
 
     ctx.logger.info(`Repo scaffold complete at ${targetPath}`);
+    return createdFiles;
 }
 
 async function scaffoldPlugin(
@@ -136,7 +142,8 @@ async function scaffoldPlugin(
     targetPath: string,
     options: CreateOptions,
     ancestorPluginsJson: string,
-): Promise<void> {
+): Promise<string[]> {
+    const createdFiles: string[] = [];
     const pluginName = basename(targetPath);
     const ext = options.tsx ? "tsx" : "ts";
 
@@ -172,6 +179,7 @@ async function scaffoldPlugin(
         ].join("\n");
 
     await ctx.fs.writeFile(join(targetPath, `index.${ext}`), indexContent);
+    createdFiles.push(`index.${ext}`);
     ctx.logger.success(`Created index.${ext}`);
 
     // Optional style.css
@@ -180,6 +188,7 @@ async function scaffoldPlugin(
             join(targetPath, "style.css"),
             `/* ${pluginName} styles */\n`,
         );
+        createdFiles.push("style.css");
         ctx.logger.success(`Created style.css`);
     }
 
@@ -191,6 +200,7 @@ async function scaffoldPlugin(
             ``,
         ].join("\n");
         await ctx.fs.writeFile(join(targetPath, "native.ts"), nativeContent);
+        createdFiles.push("native.ts");
         ctx.logger.success(`Created native.ts`);
     }
 
@@ -224,6 +234,7 @@ async function scaffoldPlugin(
     }
 
     ctx.logger.info(`Plugin scaffold complete at ${targetPath}`);
+    return createdFiles;
 }
 
 // ─── Main execute ─────────────────────────────────────────────────────────────
@@ -234,11 +245,19 @@ export async function executeCreate(
     options: CreateOptions,
 ): Promise<void> {
     const ancestor = await findAncestorIndex(ctx.fs, targetPath);
+    let mode: "repo" | "plugin";
+    let files: string[];
 
     if (!ancestor) {
-        await scaffoldRepo(ctx, targetPath);
+        mode = "repo";
+        files = await scaffoldRepo(ctx, targetPath);
     } else {
-        await scaffoldPlugin(ctx, targetPath, options, ancestor.path);
+        mode = "plugin";
+        files = await scaffoldPlugin(ctx, targetPath, options, ancestor.path);
+    }
+
+    if (options.json) {
+        writeJson(jsonSuccess({ mode, path: targetPath, files }));
     }
 }
 

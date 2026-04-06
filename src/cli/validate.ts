@@ -1,8 +1,9 @@
 import type { Command } from "commander";
 import { join } from "node:path";
+import type { GlobalOptions, PluginIndex, PluginEntry } from "../core/types.js";
 import { validateIndex } from "../core/schema.js";
+import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
-import type { PluginIndex, PluginEntry } from "../core/types.js";
 
 export function registerValidateCommand(program: Command): void {
     program
@@ -10,13 +11,18 @@ export function registerValidateCommand(program: Command): void {
         .description("Validate a plugin index JSON file")
         .option("--strict", "Also check dependency references and tarball URLs")
         .action(async (filePath: string | undefined, options: { strict?: boolean }) => {
-            const ctx = createRealIOContext(program.opts());
+            const globalOpts = program.opts<GlobalOptions>();
+            const ctx = createRealIOContext(globalOpts);
             const targetPath = filePath ?? join(process.cwd(), "plugins.json");
 
             let raw: string;
             try {
                 raw = await ctx.fs.readFile(targetPath, "utf-8");
             } catch {
+                if (globalOpts.json) {
+                    writeJson(jsonError(`Cannot read file: ${targetPath}`));
+                    return;
+                }
                 ctx.logger.error(`Cannot read file: ${targetPath}`);
                 process.exitCode = 1;
                 return;
@@ -26,39 +32,32 @@ export function registerValidateCommand(program: Command): void {
             try {
                 data = JSON.parse(raw);
             } catch (err) {
+                if (globalOpts.json) {
+                    writeJson(jsonError(`Invalid JSON: ${(err as Error).message}`));
+                    return;
+                }
                 ctx.logger.error(`Invalid JSON: ${(err as Error).message}`);
                 process.exitCode = 1;
                 return;
             }
 
             const result = validateIndex(data);
+            const allErrors = [...result.errors];
 
-            if (!result.valid) {
-                ctx.logger.error(`Validation failed (${result.errors.length} error(s)):`);
-                for (const e of result.errors) {
-                    ctx.logger.error(`  ${e}`);
-                }
-                process.exitCode = 1;
-                return;
-            }
-
-            if (options.strict) {
+            if (result.valid && options.strict) {
                 const index = data as PluginIndex;
                 const plugins = index.plugins ?? {};
                 const pluginNames = new Set(Object.keys(plugins));
-                const strictErrors: string[] = [];
 
                 for (const [name, entry] of Object.entries(plugins) as [string, PluginEntry][]) {
-                    // Check dependency references
                     if (entry.dependencies) {
                         for (const dep of entry.dependencies) {
                             if (!pluginNames.has(dep)) {
-                                strictErrors.push(`${name}: dependency "${dep}" is not in the index`);
+                                allErrors.push(`${name}: dependency "${dep}" is not in the index`);
                             }
                         }
                     }
 
-                    // Check HEAD tarball URLs in versions
                     if (entry.versions) {
                         for (const [ver, vEntry] of Object.entries(entry.versions)) {
                             const tarball = vEntry.tarball;
@@ -66,36 +65,42 @@ export function registerValidateCommand(program: Command): void {
                                 try {
                                     const res = await ctx.http.fetch(tarball, {});
                                     if (!res.ok) {
-                                        strictErrors.push(`${name}@${ver}: tarball URL returned ${res.status}: ${tarball}`);
+                                        allErrors.push(`${name}@${ver}: tarball URL returned ${res.status}: ${tarball}`);
                                     }
                                 } catch (err) {
-                                    strictErrors.push(`${name}@${ver}: tarball URL unreachable: ${tarball} (${(err as Error).message})`);
+                                    allErrors.push(`${name}@${ver}: tarball URL unreachable: ${tarball} (${(err as Error).message})`);
                                 }
                             }
                         }
                     }
 
-                    // Check top-level tarball
                     if (entry.source?.tarball) {
                         try {
                             const res = await ctx.http.fetch(entry.source.tarball, {});
                             if (!res.ok) {
-                                strictErrors.push(`${name}: source tarball returned ${res.status}: ${entry.source.tarball}`);
+                                allErrors.push(`${name}: source tarball returned ${res.status}: ${entry.source.tarball}`);
                             }
                         } catch (err) {
-                            strictErrors.push(`${name}: source tarball unreachable: ${entry.source.tarball} (${(err as Error).message})`);
+                            allErrors.push(`${name}: source tarball unreachable: ${entry.source.tarball} (${(err as Error).message})`);
                         }
                     }
                 }
+            }
 
-                if (strictErrors.length > 0) {
-                    ctx.logger.error(`Strict validation failed (${strictErrors.length} issue(s)):`);
-                    for (const e of strictErrors) {
-                        ctx.logger.error(`  ${e}`);
-                    }
-                    process.exitCode = 1;
-                    return;
+            const valid = result.valid && allErrors.length === 0;
+
+            if (globalOpts.json) {
+                writeJson(jsonSuccess({ path: targetPath, valid, errors: allErrors }));
+                return;
+            }
+
+            if (!valid) {
+                ctx.logger.error(`Validation failed (${allErrors.length} error(s)):`);
+                for (const e of allErrors) {
+                    ctx.logger.error(`  ${e}`);
                 }
+                process.exitCode = 1;
+                return;
             }
 
             ctx.logger.success(`${targetPath} is valid`);
