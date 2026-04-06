@@ -39,6 +39,27 @@ venpm validate plugins.json --strict  # also check dependency refs + tarball URL
 - `venpm install <PluginName>` resolves the plugin across all configured repos, generates an install plan (including transitive dependencies), and fetches the plugin via git clone or tarball download.
 - Optionally, venpm calls `pnpm build` in the Vencord source tree and copies the output to Discord's load path.
 
+## Development
+
+```bash
+git clone <repo-url> && cd venpm
+node scripts/setup.mjs        # install, build, link globally
+```
+
+This gives you a working `venpm` command. The setup script:
+1. Checks Node.js >= 18, npm, and optional tools (git, pnpm)
+2. Installs dependencies
+3. Compiles TypeScript
+4. Links `venpm` globally via `npm link`
+
+After setup:
+```bash
+npm run dev                    # watch mode — auto-rebuild on changes
+npm test                       # run tests
+npm run lint                   # type check
+npm run unsetup                # remove global link
+```
+
 ## Docs
 
 - [Getting Started](docs/getting-started.md)

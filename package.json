@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "setup": "npm install && npm run build && npm link",
+    "unsetup": "npm unlink -g venpm"
   },
   "engines": {
     "node": ">=18.0.0"
