@@ -140,9 +140,25 @@ function selectMethod(
 // ─── Install Plan ─────────────────────────────────────────────────────────────
 
 /**
+ * Collect optional dependencies that are not currently installed.
+ * These are surfaced as warnings, not auto-installed.
+ */
+export function collectMissingOptionalDeps(
+    indexes: PluginIndex[],
+    pluginName: string,
+    lockfile: LockfileData,
+): string[] {
+    const found = findPlugin(indexes, pluginName);
+    if (!found) return [];
+
+    const optDeps = found.entry.optionalDependencies ?? [];
+    return optDeps.filter(dep => !Object.prototype.hasOwnProperty.call(lockfile.installed, dep));
+}
+
+/**
  * Generate a full install plan for `pluginName`, resolving dependencies and
  * skipping already-installed plugins. Returns an InstallPlan with entries in
- * dependency-first order.
+ * dependency-first order, plus any missing optional deps as warnings.
  */
 export function generateInstallPlan(
     indexes: PluginIndex[],
@@ -182,5 +198,7 @@ export function generateInstallPlan(
         });
     }
 
-    return { entries };
+    const missingOptional = collectMissingOptionalDeps(indexes, pluginName, lockfile);
+
+    return { entries, missingOptional };
 }

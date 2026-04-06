@@ -128,6 +128,12 @@ export async function executeInstall(
         logger.info(`  ${entry.name}@${entry.version} via ${entry.method}${depLabel}`);
     }
 
+    // Warn about missing optional dependencies
+    if (plan.missingOptional?.length) {
+        logger.warn(`Recommended plugins not installed: ${plan.missingOptional.join(", ")}`);
+        logger.info(`  Install with: venpm install ${plan.missingOptional.join(" ")}`);
+    }
+
     const confirmed = await prompter.confirm(`Proceed with installation?`, true);
     if (!confirmed) {
         logger.info("Installation cancelled.");

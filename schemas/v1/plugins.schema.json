@@ -33,7 +33,8 @@
           "minItems": 1
         },
         "license": { "type": "string", "description": "SPDX license identifier" },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "dependencies": { "type": "array", "items": { "type": "string" }, "description": "Required plugins (auto-installed)" },
+        "optionalDependencies": { "type": "array", "items": { "type": "string" }, "description": "Recommended plugins (warned about, not auto-installed)" },
         "discord": { "type": "string", "description": "Informational Discord version range (never blocks install)" },
         "vencord": { "type": "string", "description": "Informational Vencord version range (never blocks install)" },
         "source": { "$ref": "#/$defs/pluginSource" },

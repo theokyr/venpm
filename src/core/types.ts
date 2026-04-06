@@ -29,6 +29,7 @@ export interface PluginEntry {
     authors: PluginAuthor[];
     license?: string;
     dependencies?: string[];
+    optionalDependencies?: string[];
     /** Semver range for required Discord build */
     discord?: string;
     /** Semver range for required Vencord version */
@@ -108,6 +109,8 @@ export interface InstallPlanEntry {
 
 export interface InstallPlan {
     entries: InstallPlanEntry[];
+    /** Optional deps that aren't installed — surfaced as warnings */
+    missingOptional?: string[];
 }
 
 // ─── I/O Context (dependency injection) ─────────────────────────────────────
