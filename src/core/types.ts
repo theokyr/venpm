@@ -61,8 +61,8 @@ export interface RepoEntry {
 export interface Config {
     repos: RepoEntry[];
     vencord: {
-        /** Absolute path to the Vencord source checkout */
-        path: string;
+        /** Absolute path to the Vencord source checkout, or null if not yet configured */
+        path: string | null;
     };
     rebuild: RebuildMode;
     discord: {
