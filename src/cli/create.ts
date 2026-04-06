@@ -11,17 +11,17 @@ export interface CreateOptions extends GlobalOptions {
     native?: boolean;
 }
 
-// ─── Mode Detection ───────────────────────────────────────────────────────────
+// ─── Ancestor index walking ───────────────────────────────────────────────────
 
 /**
- * Walk up ancestor directories from targetPath looking for a plugins.json whose
- * $schema contains "venpm". Returns "plugin" if found, "repo" otherwise.
+ * Walk up ancestor directories from startPath looking for a plugins.json whose
+ * $schema contains "venpm". Returns { path, data } if found, null otherwise.
  */
-export async function detectCreateMode(
+export async function findAncestorIndex(
     fs: FileSystem,
-    targetPath: string,
-): Promise<"repo" | "plugin"> {
-    let dir = targetPath;
+    startPath: string,
+): Promise<{ path: string; data: Record<string, unknown> } | null> {
+    let dir = startPath;
     while (true) {
         const candidate = join(dir, "plugins.json");
         if (await fs.exists(candidate)) {
@@ -29,7 +29,7 @@ export async function detectCreateMode(
                 const raw = await fs.readFile(candidate, "utf8");
                 const parsed = JSON.parse(raw) as Record<string, unknown>;
                 if (typeof parsed.$schema === "string" && parsed.$schema.includes("venpm")) {
-                    return "plugin";
+                    return { path: candidate, data: parsed };
                 }
             } catch {
                 // ignore parse errors — keep walking up
@@ -39,7 +39,21 @@ export async function detectCreateMode(
         if (parent === dir) break; // reached filesystem root
         dir = parent;
     }
-    return "repo";
+    return null;
+}
+
+// ─── Mode Detection ───────────────────────────────────────────────────────────
+
+/**
+ * Walk up ancestor directories from targetPath looking for a venpm plugins.json.
+ * Returns "plugin" if found, "repo" otherwise.
+ */
+export async function detectCreateMode(
+    fs: FileSystem,
+    targetPath: string,
+): Promise<"repo" | "plugin"> {
+    const ancestor = await findAncestorIndex(fs, targetPath);
+    return ancestor ? "plugin" : "repo";
 }
 
 // ─── Scaffold helpers ─────────────────────────────────────────────────────────
@@ -212,33 +226,6 @@ async function scaffoldPlugin(
     ctx.logger.info(`Plugin scaffold complete at ${targetPath}`);
 }
 
-// ─── Find ancestor plugins.json ───────────────────────────────────────────────
-
-async function findAncestorPluginsJson(
-    fs: FileSystem,
-    targetPath: string,
-): Promise<string | null> {
-    let dir = targetPath;
-    while (true) {
-        const candidate = join(dir, "plugins.json");
-        if (await fs.exists(candidate)) {
-            try {
-                const raw = await fs.readFile(candidate, "utf8");
-                const parsed = JSON.parse(raw) as Record<string, unknown>;
-                if (typeof parsed.$schema === "string" && parsed.$schema.includes("venpm")) {
-                    return candidate;
-                }
-            } catch {
-                // ignore
-            }
-        }
-        const parent = dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-    }
-    return null;
-}
-
 // ─── Main execute ─────────────────────────────────────────────────────────────
 
 export async function executeCreate(
@@ -246,18 +233,12 @@ export async function executeCreate(
     targetPath: string,
     options: CreateOptions,
 ): Promise<void> {
-    const mode = await detectCreateMode(ctx.fs, targetPath);
+    const ancestor = await findAncestorIndex(ctx.fs, targetPath);
 
-    if (mode === "repo") {
+    if (!ancestor) {
         await scaffoldRepo(ctx, targetPath);
     } else {
-        const ancestorPluginsJson = await findAncestorPluginsJson(ctx.fs, targetPath);
-        if (!ancestorPluginsJson) {
-            ctx.logger.error("Could not locate ancestor plugins.json");
-            process.exitCode = 1;
-            return;
-        }
-        await scaffoldPlugin(ctx, targetPath, options, ancestorPluginsJson);
+        await scaffoldPlugin(ctx, targetPath, options, ancestor.path);
     }
 }
 
