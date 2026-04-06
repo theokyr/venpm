@@ -116,9 +116,12 @@ export async function fetchPlugin(
             if (!source.git) {
                 throw new Error(`Plugin "${name}" has no git URL in source`);
             }
+            // Only pass a tag if the version entry has an explicit git_tag
+            const versionEntry = entry.versionEntry;
+            const tag = versionEntry?.git_tag;
             return fetchViaGit(ctx.git, ctx.fs, source.git, dest, {
                 path: source.path,
-                tag: entry.version !== "latest" ? entry.version : undefined,
+                tag,
             });
         }
 

@@ -105,6 +105,8 @@ export interface InstallPlanEntry {
     isDependency: boolean;
     /** Current installed version, if upgrading */
     currentVersion?: string;
+    /** Version metadata from the index (git_tag, tarball URL) */
+    versionEntry?: VersionEntry;
 }
 
 export interface InstallPlan {

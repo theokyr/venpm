@@ -143,17 +143,23 @@ export async function executeInstall(
     // 8. Fetch each entry and update lockfile
     for (const entry of plan.entries) {
         logger.info(`Installing ${entry.name}@${entry.version} via ${entry.method}...`);
-        const result = await fetchPlugin(entry, userpluginDir, { fs, git, http });
+        try {
+            const result = await fetchPlugin(entry, userpluginDir, { fs, git, http });
 
-        lockfile = addInstalled(lockfile, entry.name, {
-            version: entry.version,
-            repo: entry.repo,
-            method: result.method,
-            pinned: false,
-            git_ref: result.git_ref,
-            installed_at: new Date().toISOString(),
-            path: result.path,
-        });
+            lockfile = addInstalled(lockfile, entry.name, {
+                version: entry.version,
+                repo: entry.repo,
+                method: result.method,
+                pinned: false,
+                git_ref: result.git_ref,
+                installed_at: new Date().toISOString(),
+                path: result.path,
+            });
+        } catch (err) {
+            logger.error(`Failed to install ${entry.name}: ${err instanceof Error ? err.message : err}`);
+            process.exitCode = 1;
+            return;
+        }
     }
 
     // 9. Save lockfile

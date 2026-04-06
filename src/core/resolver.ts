@@ -195,6 +195,7 @@ export function generateInstallPlan(
             source: entry.source,
             method,
             isDependency,
+            versionEntry: entry.versions?.[version],
         });
     }
 
