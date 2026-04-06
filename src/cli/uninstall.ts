@@ -6,6 +6,7 @@ import { loadLockfile, saveLockfile, isInstalled, removeInstalled } from "../cor
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
+import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeUninstall(ctx: IOContext, pluginName: string, options: GlobalOptions): Promise<void> {
@@ -16,6 +17,10 @@ export async function executeUninstall(ctx: IOContext, pluginName: string, optio
     let lockfile = await loadLockfile(ctx.fs, lockfilePath);
 
     if (!isInstalled(lockfile, pluginName)) {
+        if (options.json) {
+            writeJson(jsonError(`Plugin "${pluginName}" is not installed.`));
+            return;
+        }
         ctx.logger.error(`Plugin "${pluginName}" is not installed.`);
         process.exitCode = 1;
         return;
@@ -47,6 +52,11 @@ export async function executeUninstall(ctx: IOContext, pluginName: string, optio
 
     lockfile = removeInstalled(lockfile, pluginName);
     await saveLockfile(ctx.fs, lockfilePath, lockfile);
+
+    if (options.json) {
+        writeJson(jsonSuccess({ removed: pluginName }));
+        return;
+    }
     ctx.logger.success(`Uninstalled "${pluginName}".`);
 }
 

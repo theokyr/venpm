@@ -7,6 +7,7 @@ import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
 import { fetchPlugin } from "../core/fetcher.js";
+import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 import { selectMethodFromSource } from "../core/resolver.js";
 
@@ -29,6 +30,10 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
     if (pluginName !== undefined) {
         const info = getInstalled(lockfile, pluginName);
         if (!info) {
+            if (options.json) {
+                writeJson(jsonError(`Plugin "${pluginName}" is not installed.`));
+                return;
+            }
             ctx.logger.error(`Plugin "${pluginName}" is not installed.`);
             process.exitCode = 1;
             return;
@@ -70,6 +75,8 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
     const gitAvailable = await ctx.git.available();
 
     let updatedCount = 0;
+    const updatedEntries: { name: string; from: string; to: string }[] = [];
+    const skippedNames: string[] = [];
 
     for (const name of updateable) {
         const installedInfo = getInstalled(lockfile, name)!;
@@ -77,6 +84,7 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
 
         if (!match) {
             ctx.logger.warn(`Plugin "${name}" not found in repo "${installedInfo.repo}" — skipping`);
+            skippedNames.push(name);
             continue;
         }
 
@@ -84,6 +92,7 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
 
         if (latestVersion === installedInfo.version) {
             ctx.logger.verbose(`${name} is up to date (${installedInfo.version})`);
+            skippedNames.push(name);
             continue;
         }
 
@@ -133,10 +142,16 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
         }
 
         ctx.logger.success(`Updated ${name} to ${latestVersion}`);
+        updatedEntries.push({ name, from: installedInfo.version, to: latestVersion });
         updatedCount++;
     }
 
     await saveLockfile(ctx.fs, lockfilePath, lockfile);
+
+    if (options.json) {
+        writeJson(jsonSuccess({ updated: updatedEntries, skipped: skippedNames }));
+        return;
+    }
 
     if (updatedCount === 0) {
         ctx.logger.info("All plugins are up to date.");

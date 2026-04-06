@@ -10,6 +10,7 @@ import { fetchPlugin, fetchViaLocal } from "../core/fetcher.js";
 import { buildAndDeploy } from "../core/builder.js";
 import { detectVencordPath, detectDiscordBinary } from "../core/detect.js";
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
+import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -31,6 +32,10 @@ export async function executeInstall(
     // 2. Resolve Vencord path
     const vencordPath = config.vencord.path ?? await detectVencordPath(fs);
     if (!vencordPath) {
+        if (options.json) {
+            writeJson(jsonError("Could not find Vencord source path. Set vencord.path in config or VENPM_VENCORD_PATH env var."));
+            return;
+        }
         logger.error("Could not find Vencord source path. Set vencord.path in config or VENPM_VENCORD_PATH env var.");
         process.exitCode = 1;
         return;
@@ -52,6 +57,10 @@ export async function executeInstall(
             installed_at: new Date().toISOString(),
         });
         await saveLockfile(fs, lockfilePath, lockfile);
+        if (options.json) {
+            writeJson(jsonSuccess({ installed: [{ name: pluginName, version: "local", method: "local" }], warnings: [] }));
+            return;
+        }
         logger.success(`Installed ${pluginName} from local path`);
         return;
     }
@@ -71,11 +80,14 @@ export async function executeInstall(
     // 5. Resolve plugin
     const match = resolvePlugin(fetchedIndexes, pluginName, options.from);
     if (!match) {
-        if (options.from) {
-            logger.error(`Plugin "${pluginName}" not found in repo "${options.from}"`);
-        } else {
-            logger.error(`Plugin "${pluginName}" not found in any configured repo`);
+        const msg = options.from
+            ? `Plugin "${pluginName}" not found in repo "${options.from}"`
+            : `Plugin "${pluginName}" not found in any configured repo`;
+        if (options.json) {
+            writeJson(jsonError(msg));
+            return;
         }
+        logger.error(msg);
         process.exitCode = 1;
         return;
     }
@@ -112,6 +124,10 @@ export async function executeInstall(
         });
     } catch (err) {
         if (err instanceof ResolverError) {
+            if (options.json) {
+                writeJson(jsonError(err.message));
+                return;
+            }
             logger.error(err.message);
             process.exitCode = 1;
             return;
@@ -144,6 +160,7 @@ export async function executeInstall(
     }
 
     // 8. Fetch each entry and update lockfile
+    const installedEntries: { name: string; version: string; method: string }[] = [];
     for (const entry of plan.entries) {
         logger.info(`Installing ${entry.name}@${entry.version} via ${entry.method}...`);
         try {
@@ -158,8 +175,14 @@ export async function executeInstall(
                 installed_at: new Date().toISOString(),
                 path: result.path,
             });
+            installedEntries.push({ name: entry.name, version: entry.version, method: result.method });
         } catch (err) {
-            logger.error(`Failed to install ${entry.name}: ${err instanceof Error ? err.message : err}`);
+            const msg = `Failed to install ${entry.name}: ${err instanceof Error ? err.message : err}`;
+            if (options.json) {
+                writeJson(jsonError(msg));
+                return;
+            }
+            logger.error(msg);
             process.exitCode = 1;
             return;
         }
@@ -167,6 +190,17 @@ export async function executeInstall(
 
     // 9. Save lockfile
     await saveLockfile(fs, lockfilePath, lockfile);
+
+    if (options.json) {
+        writeJson(jsonSuccess({
+            installed: installedEntries,
+            warnings: plan.missingOptional?.length
+                ? [`Recommended plugins not installed: ${plan.missingOptional.join(", ")}`]
+                : [],
+        }));
+        return;
+    }
+
     logger.success(`Successfully installed ${pluginName}`);
 
     // 10. Handle rebuild
