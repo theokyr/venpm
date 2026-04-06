@@ -1,0 +1,12 @@
+{
+  "name": "bad-repo",
+  "description": "An index with a plugin that has an empty source object",
+  "plugins": {
+    "myPlugin": {
+      "version": "1.0.0",
+      "description": "A plugin with no valid source",
+      "authors": [{ "name": "kamaras", "id": "123456789" }],
+      "source": {}
+    }
+  }
+}
