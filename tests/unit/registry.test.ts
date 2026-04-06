@@ -7,20 +7,30 @@ import {
     searchPlugins,
     type FetchedIndex,
 } from "../../src/core/registry.js";
+import type { CacheEntry, IndexCache } from "../../src/core/cache.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function mockResponse(opts: { ok: boolean; status?: number; body?: string }): ReturnType<HttpClient["fetch"]> {
+function mockResponse(opts: {
+    ok: boolean;
+    status?: number;
+    body?: string;
+    headers?: Record<string, string>;
+}): ReturnType<HttpClient["fetch"]> {
+    const hdrs = opts.headers ?? {};
     return Promise.resolve({
         ok: opts.ok,
         status: opts.status ?? (opts.ok ? 200 : 404),
+        headers: {
+            get: (name: string) => hdrs[name.toLowerCase()] ?? hdrs[name] ?? null,
+        },
         text: vi.fn(() => Promise.resolve(opts.body ?? "")),
         json: vi.fn(() => Promise.resolve(JSON.parse(opts.body ?? "{}"))),
         arrayBuffer: vi.fn(() => Promise.resolve(new ArrayBuffer(0))),
     });
 }
 
-function mockHttp(handler: (url: string) => ReturnType<HttpClient["fetch"]>): HttpClient {
+function mockHttp(handler: (url: string, opts?: { headers?: Record<string, string> }) => ReturnType<HttpClient["fetch"]>): HttpClient {
     return { fetch: vi.fn(handler) };
 }
 
@@ -248,5 +258,152 @@ describe("searchPlugins", () => {
         const results = searchPlugins(withError, "cool");
         expect(results.length).toBeGreaterThan(0);
         expect(results[0].repoName).toBe("good");
+    });
+});
+
+// ─── fetchIndex caching ───────────────────────────────────────────────────────
+
+describe("fetchIndex caching", () => {
+    it("sends If-None-Match header when cache has etag", async () => {
+        const sentHeaders: Record<string, string>[] = [];
+        const http = mockHttp((_url, opts) => {
+            if (opts?.headers) sentHeaders.push(opts.headers);
+            return mockResponse({ ok: true, body: JSON.stringify(VALID_INDEX) });
+        });
+
+        const cached: CacheEntry = {
+            url: "https://example.com/plugins.json",
+            etag: '"abc123"',
+            body: JSON.stringify(VALID_INDEX),
+            cachedAt: "2024-01-01T00:00:00.000Z",
+        };
+
+        await fetchIndex(http, "https://example.com/plugins.json", { cached });
+
+        expect(sentHeaders).toHaveLength(1);
+        expect(sentHeaders[0]["If-None-Match"]).toBe('"abc123"');
+    });
+
+    it("sends If-Modified-Since header when cache has lastModified", async () => {
+        const sentHeaders: Record<string, string>[] = [];
+        const http = mockHttp((_url, opts) => {
+            if (opts?.headers) sentHeaders.push(opts.headers);
+            return mockResponse({ ok: true, body: JSON.stringify(VALID_INDEX) });
+        });
+
+        const cached: CacheEntry = {
+            url: "https://example.com/plugins.json",
+            lastModified: "Mon, 01 Jan 2024 00:00:00 GMT",
+            body: JSON.stringify(VALID_INDEX),
+            cachedAt: "2024-01-01T00:00:00.000Z",
+        };
+
+        await fetchIndex(http, "https://example.com/plugins.json", { cached });
+
+        expect(sentHeaders).toHaveLength(1);
+        expect(sentHeaders[0]["If-Modified-Since"]).toBe("Mon, 01 Jan 2024 00:00:00 GMT");
+    });
+
+    it("returns cached body on 304 response", async () => {
+        const http = mockHttp(() => mockResponse({ ok: false, status: 304 }));
+
+        const cached: CacheEntry = {
+            url: "https://example.com/plugins.json",
+            etag: '"abc123"',
+            body: JSON.stringify(VALID_INDEX),
+            cachedAt: "2024-01-01T00:00:00.000Z",
+        };
+
+        const result = await fetchIndex(http, "https://example.com/plugins.json", { cached });
+        expect(result.index.name).toBe("test-repo");
+        // No updatedEntry since content didn't change
+        expect(result.updatedEntry).toBeUndefined();
+    });
+
+    it("updates cache entry on 200 response with new etag", async () => {
+        const http = mockHttp(() => mockResponse({
+            ok: true,
+            body: JSON.stringify(VALID_INDEX),
+            headers: { etag: '"newetag456"' },
+        }));
+
+        const result = await fetchIndex(http, "https://example.com/plugins.json");
+        expect(result.index.name).toBe("test-repo");
+        expect(result.updatedEntry).toBeDefined();
+        expect(result.updatedEntry!.etag).toBe('"newetag456"');
+        expect(result.updatedEntry!.url).toBe("https://example.com/plugins.json");
+        expect(result.updatedEntry!.body).toBe(JSON.stringify(VALID_INDEX));
+    });
+
+    it("works normally without cache options (backward compat)", async () => {
+        const http = mockHttp(() => mockResponse({ ok: true, body: JSON.stringify(VALID_INDEX) }));
+        const result = await fetchIndex(http, "https://example.com/plugins.json");
+        expect(result.index.name).toBe("test-repo");
+        expect(result.index.plugins).toHaveProperty("CoolPlugin");
+    });
+});
+
+// ─── fetchAllIndexes caching ──────────────────────────────────────────────────
+
+describe("fetchAllIndexes caching", () => {
+    it("passes cache entry to fetchIndex when URL matches", async () => {
+        const sentHeaders: Record<string, string>[] = [];
+        const http = mockHttp((_url, opts) => {
+            if (opts?.headers) sentHeaders.push({ ...opts.headers });
+            return mockResponse({ ok: true, body: JSON.stringify(VALID_INDEX) });
+        });
+
+        const cache: IndexCache = {
+            entries: {
+                "https://example.com/plugins.json": {
+                    url: "https://example.com/plugins.json",
+                    etag: '"cached-etag"',
+                    body: JSON.stringify(VALID_INDEX),
+                    cachedAt: "2024-01-01T00:00:00.000Z",
+                },
+            },
+        };
+
+        const repos: RepoEntry[] = [{ name: "test", url: "https://example.com/plugins.json" }];
+        await fetchAllIndexes(http, repos, { cache });
+
+        expect(sentHeaders).toHaveLength(1);
+        expect(sentHeaders[0]["If-None-Match"]).toBe('"cached-etag"');
+    });
+
+    it("returns updated cache containing new etags", async () => {
+        const http = mockHttp(() => mockResponse({
+            ok: true,
+            body: JSON.stringify(VALID_INDEX),
+            headers: { etag: '"freshTag"' },
+        }));
+
+        const repos: RepoEntry[] = [{ name: "test", url: "https://example.com/plugins.json" }];
+        const { updatedCache } = await fetchAllIndexes(http, repos);
+
+        expect(updatedCache.entries).toHaveProperty("https://example.com/plugins.json");
+        expect(updatedCache.entries["https://example.com/plugins.json"].etag).toBe('"freshTag"');
+    });
+
+    it("does not overwrite cache entry on 304 (no updatedEntry)", async () => {
+        const http = mockHttp(() => mockResponse({ ok: false, status: 304 }));
+
+        const existingEntry: CacheEntry = {
+            url: "https://example.com/plugins.json",
+            etag: '"old-etag"',
+            body: JSON.stringify(VALID_INDEX),
+            cachedAt: "2024-01-01T00:00:00.000Z",
+        };
+        const cache: IndexCache = {
+            entries: { "https://example.com/plugins.json": existingEntry },
+        };
+
+        const repos: RepoEntry[] = [{ name: "test", url: "https://example.com/plugins.json" }];
+        const { results, updatedCache } = await fetchAllIndexes(http, repos, { cache });
+
+        // Plugin was served from cache
+        expect(results[0].index?.name).toBe("test-repo");
+        // Cache entry etag unchanged (304 → no updatedEntry → no overwrite)
+        expect(updatedCache.entries["https://example.com/plugins.json"].etag).toBe('"old-etag"');
     });
 });
