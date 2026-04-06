@@ -1,0 +1,47 @@
+{
+  "name": "full-repo",
+  "description": "A full-featured plugin index with all optional fields",
+  "plugins": {
+    "gitPlugin": {
+      "version": "2.1.0",
+      "description": "A plugin installed via git",
+      "authors": [{ "name": "kamaras", "id": "111222333" }],
+      "license": "MIT",
+      "dependencies": ["otherPlugin"],
+      "discord": ">=200000",
+      "vencord": ">=1.0.0",
+      "source": {
+        "git": "https://github.com/example/git-plugin.git",
+        "path": "packages/gitPlugin"
+      },
+      "versions": {
+        "2.1.0": { "git_tag": "v2.1.0" },
+        "2.0.0": { "git_tag": "v2.0.0" }
+      }
+    },
+    "otherPlugin": {
+      "version": "1.0.0",
+      "description": "A dependency plugin",
+      "authors": [{ "name": "kamaras", "id": "111222333" }],
+      "source": {
+        "git": "https://github.com/example/other-plugin.git"
+      }
+    },
+    "tarballPlugin": {
+      "version": "0.5.3",
+      "description": "A plugin installed via tarball",
+      "authors": [
+        { "name": "kamaras", "id": "111222333" },
+        { "name": "contributor", "id": "444555666" }
+      ],
+      "license": "Apache-2.0",
+      "source": {
+        "tarball": "https://cdn.example.com/plugins/tarball-plugin-0.5.3.tar.gz"
+      },
+      "versions": {
+        "0.5.3": { "tarball": "https://cdn.example.com/plugins/tarball-plugin-0.5.3.tar.gz" },
+        "0.5.2": { "tarball": "https://cdn.example.com/plugins/tarball-plugin-0.5.2.tar.gz" }
+      }
+    }
+  }
+}

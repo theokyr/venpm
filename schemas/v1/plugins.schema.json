@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://venpm.dev/schemas/v1/plugins.json",
+  "title": "venpm Plugin Index",
+  "description": "Plugin repository index for venpm, the Vencord Plugin Manager",
+  "type": "object",
+  "required": ["name", "description", "plugins"],
+  "properties": {
+    "$schema": { "type": "string", "description": "JSON Schema URL for IDE validation" },
+    "name": { "type": "string", "description": "Repository identifier", "pattern": "^[a-zA-Z0-9_-]+$" },
+    "description": { "type": "string", "description": "Human-readable repository description" },
+    "plugins": {
+      "type": "object",
+      "description": "Map of plugin name to plugin definition",
+      "additionalProperties": { "$ref": "#/$defs/pluginEntry" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "pluginEntry": {
+      "type": "object",
+      "required": ["version", "description", "authors", "source"],
+      "properties": {
+        "version": { "type": "string", "description": "Current/latest semver version", "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.]+)?$" },
+        "description": { "type": "string" },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["name", "id"],
+            "properties": { "name": { "type": "string" }, "id": { "type": "string" } },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "license": { "type": "string", "description": "SPDX license identifier" },
+        "dependencies": { "type": "array", "items": { "type": "string" }, "description": "Required plugins (auto-installed)" },
+        "optionalDependencies": { "type": "array", "items": { "type": "string" }, "description": "Recommended plugins (warned about, not auto-installed)" },
+        "discord": { "type": "string", "description": "Informational Discord version range (never blocks install)" },
+        "vencord": { "type": "string", "description": "Informational Vencord version range (never blocks install)" },
+        "source": { "$ref": "#/$defs/pluginSource" },
+        "versions": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/versionEntry" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "pluginSource": {
+      "type": "object",
+      "description": "Where to fetch the plugin. At least one of git, tarball, or local must be present.",
+      "properties": {
+        "git": { "type": "string", "description": "Git clone URL" },
+        "path": { "type": "string", "description": "Subdirectory within the git repo (for monorepos)" },
+        "tarball": { "type": "string", "format": "uri", "description": "Direct download URL for tarball" },
+        "local": { "type": "string", "description": "Local filesystem path (developer workflow)" }
+      },
+      "anyOf": [{ "required": ["git"] }, { "required": ["tarball"] }, { "required": ["local"] }],
+      "additionalProperties": false
+    },
+    "versionEntry": {
+      "type": "object",
+      "properties": {
+        "git_tag": { "type": "string" },
+        "tarball": { "type": "string", "format": "uri" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

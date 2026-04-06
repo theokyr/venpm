@@ -1,0 +1,13 @@
+{
+  "description": "An index missing the required name field",
+  "plugins": {
+    "myPlugin": {
+      "version": "1.0.0",
+      "description": "A plugin",
+      "authors": [{ "name": "kamaras", "id": "123456789" }],
+      "source": {
+        "git": "https://github.com/example/my-plugin.git"
+      }
+    }
+  }
+}

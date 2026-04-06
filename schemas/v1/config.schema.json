@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://venpm.dev/schemas/v1/config.json",
+  "title": "venpm Config",
+  "description": "User configuration for venpm, the Vencord Plugin Manager",
+  "type": "object",
+  "required": ["repos", "vencord", "rebuild", "discord"],
+  "properties": {
+    "$schema": { "type": "string", "description": "JSON Schema URL for IDE validation" },
+    "repos": {
+      "type": "array",
+      "description": "Plugin repository sources",
+      "items": {
+        "type": "object",
+        "required": ["name", "url"],
+        "properties": {
+          "name": { "type": "string", "description": "Repository identifier", "pattern": "^[a-zA-Z0-9_-]+$" },
+          "url": { "type": "string", "format": "uri", "description": "URL to the plugin index JSON" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "vencord": {
+      "type": "object",
+      "description": "Vencord installation settings",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": ["string", "null"], "description": "Path to the Vencord source directory, or null to auto-detect" }
+      },
+      "additionalProperties": false
+    },
+    "rebuild": {
+      "type": "string",
+      "description": "Whether to rebuild Vencord after plugin changes",
+      "enum": ["ask", "always", "never"]
+    },
+    "discord": {
+      "type": "object",
+      "description": "Discord restart settings",
+      "required": ["restart", "binary"],
+      "properties": {
+        "restart": {
+          "type": "string",
+          "description": "Whether to restart Discord after a rebuild",
+          "enum": ["ask", "always", "never"]
+        },
+        "binary": { "type": ["string", "null"], "description": "Path to the Discord binary, or null to auto-detect" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

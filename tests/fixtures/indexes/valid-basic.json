@@ -1,0 +1,14 @@
+{
+  "name": "my-repo",
+  "description": "A minimal plugin index",
+  "plugins": {
+    "myPlugin": {
+      "version": "1.0.0",
+      "description": "A simple plugin",
+      "authors": [{ "name": "kamaras", "id": "123456789" }],
+      "source": {
+        "git": "https://github.com/example/my-plugin.git"
+      }
+    }
+  }
+}

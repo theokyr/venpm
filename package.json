@@ -1,0 +1,47 @@
+{
+  "name": "venpm",
+  "version": "0.1.0",
+  "description": "Vencord Plugin Manager — CLI and index spec for distributing userplugins",
+  "type": "module",
+  "bin": {
+    "venpm": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "setup": "npm install && npm run build && npm link",
+    "unsetup": "npm unlink -g venpm"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/",
+    "schemas/",
+    "actions/"
+  ],
+  "keywords": [
+    "vencord",
+    "discord",
+    "plugin",
+    "userplugin",
+    "package-manager"
+  ],
+  "author": "kamaras",
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.17.0",
+    "ajv-formats": "^3.0.1",
+    "commander": "^13.0.0",
+    "tar": "^7.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.0"
+  }
+}
