@@ -89,10 +89,7 @@ export interface InstalledPlugin {
 }
 
 export interface LockfileData {
-    /** Plugin name → InstalledPlugin */
-    plugins: Record<string, InstalledPlugin>;
-    /** ISO timestamp of last full sync */
-    last_updated?: string;
+    installed: Record<string, InstalledPlugin>;
 }
 
 // ─── Install Plan ────────────────────────────────────────────────────────────
