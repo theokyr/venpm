@@ -1,10 +1,41 @@
 import type { Command } from "commander";
+import type { IOContext } from "../core/types.js";
+import { loadConfig } from "../core/config.js";
+import { getConfigPath } from "../core/paths.js";
+import { fetchAllIndexes, searchPlugins } from "../core/registry.js";
+import { createRealIOContext } from "./context.js";
+
+export async function executeSearch(ctx: IOContext, query: string): Promise<void> {
+    const config = await loadConfig(ctx.fs, getConfigPath());
+    const indexes = await fetchAllIndexes(ctx.http, config.repos);
+
+    for (const fi of indexes) {
+        if (fi.error) {
+            ctx.logger.warn(`Failed to fetch index from "${fi.repoName}": ${fi.error}`);
+        }
+    }
+
+    const results = searchPlugins(indexes, query);
+
+    if (results.length === 0) {
+        ctx.logger.info(`No plugins found matching "${query}"`);
+        return;
+    }
+
+    ctx.logger.info(`Search results for "${query}" (${results.length} found):\n`);
+    for (const match of results) {
+        const desc = match.entry.description ? ` — ${match.entry.description}` : "";
+        ctx.logger.info(`  ${match.name}@${match.entry.version}${desc}`);
+        ctx.logger.info(`    repo: ${match.repoName}`);
+    }
+}
 
 export function registerSearchCommand(program: Command): void {
     program
         .command("search <query>")
         .description("Search for plugins in configured repositories")
-        .action(async () => {
-            console.log("Not yet implemented");
+        .action(async (query: string) => {
+            const ctx = createRealIOContext(program.opts());
+            await executeSearch(ctx, query);
         });
 }
