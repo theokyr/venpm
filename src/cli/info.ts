@@ -5,6 +5,7 @@ import { loadLockfile, getInstalled } from "../core/lockfile.js";
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
+import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeInfo(ctx: IOContext, pluginName: string, options: GlobalOptions = {}): Promise<void> {
@@ -28,7 +29,27 @@ export async function executeInfo(ctx: IOContext, pluginName: string, options: G
     const installedInfo = getInstalled(lockfile, pluginName);
 
     if (!match && !installedInfo) {
+        if (options.json) {
+            writeJson(jsonError(`Plugin "${pluginName}" not found in any index and is not installed`));
+            return;
+        }
         ctx.logger.error(`Plugin "${pluginName}" not found in any index and is not installed`);
+        return;
+    }
+
+    if (options.json) {
+        writeJson(jsonSuccess({
+            name: pluginName,
+            version: match?.entry.version ?? null,
+            description: match?.entry.description ?? null,
+            authors: match?.entry.authors ?? [],
+            repo: match?.repoName ?? null,
+            dependencies: match?.entry.dependencies ?? [],
+            optionalDependencies: match?.entry.optionalDependencies ?? [],
+            versions: match?.entry.versions ? Object.keys(match.entry.versions) : [],
+            installed: !!installedInfo,
+            installedVersion: installedInfo?.version ?? null,
+        }));
         return;
     }
 

@@ -4,6 +4,7 @@ import { loadConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
 import { fetchAllIndexes, searchPlugins } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
+import { jsonSuccess, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeSearch(ctx: IOContext, query: string, options: GlobalOptions = {}): Promise<void> {
@@ -19,6 +20,18 @@ export async function executeSearch(ctx: IOContext, query: string, options: Glob
     }
 
     const results = searchPlugins(indexes, query);
+
+    if (options.json) {
+        writeJson(jsonSuccess({
+            results: results.map(r => ({
+                name: r.name,
+                version: r.entry.version,
+                description: r.entry.description ?? null,
+                repo: r.repoName,
+            })),
+        }));
+        return;
+    }
 
     if (results.length === 0) {
         ctx.logger.info(`No plugins found matching "${query}"`);
