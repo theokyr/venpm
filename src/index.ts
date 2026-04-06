@@ -21,7 +21,8 @@ program
     .version("0.1.0")
     .option("-y, --yes", "Automatically answer yes to all prompts")
     .option("--verbose", "Enable verbose output")
-    .option("--quiet", "Suppress non-essential output");
+    .option("--quiet", "Suppress non-essential output")
+    .option("--json", "Output structured JSON instead of human-readable text");
 
 registerInstallCommand(program);
 registerUninstallCommand(program);

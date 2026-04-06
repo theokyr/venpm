@@ -156,7 +156,7 @@ export function createRealIOContext(options: GlobalOptions & { yes?: boolean; qu
         },
     };
 
-    const prompter = createPrompter({ yes: options.yes ?? false });
+    const prompter = createPrompter({ yes: options.yes || options.json || false });
     const logger = createLogger({
         verbose: options.verbose ?? false,
         quiet: options.quiet ?? false,

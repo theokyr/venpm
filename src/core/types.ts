@@ -190,6 +190,7 @@ export interface IOContext {
 export interface GlobalOptions {
     config?: string;
     verbose?: boolean;
+    json?: boolean;
 }
 
 export interface InstallOptions extends GlobalOptions {
