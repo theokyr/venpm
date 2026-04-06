@@ -4,6 +4,7 @@ import type { IOContext, InstallOptions, RebuildMode } from "../core/types.js";
 import { loadConfig } from "../core/config.js";
 import { loadLockfile, saveLockfile, addInstalled } from "../core/lockfile.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
+import { loadCache, saveCache } from "../core/cache.js";
 import { generateInstallPlan, ResolverError } from "../core/resolver.js";
 import { fetchPlugin, fetchViaLocal } from "../core/fetcher.js";
 import { buildAndDeploy } from "../core/builder.js";
@@ -55,8 +56,10 @@ export async function executeInstall(
         return;
     }
 
-    // 4. Fetch all indexes
-    const fetchedIndexes = await fetchAllIndexes(http, config.repos);
+    // 4. Fetch all indexes (with cache)
+    const cache = await loadCache(fs);
+    const { results: fetchedIndexes, updatedCache } = await fetchAllIndexes(http, config.repos, { cache });
+    await saveCache(fs, updatedCache);
     const validIndexes = fetchedIndexes.filter(fi => fi.index !== undefined);
 
     for (const fi of fetchedIndexes) {

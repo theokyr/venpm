@@ -4,6 +4,7 @@ import { loadConfig } from "../core/config.js";
 import { loadLockfile, getInstalled } from "../core/lockfile.js";
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
+import { loadCache, saveCache } from "../core/cache.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeInfo(ctx: IOContext, pluginName: string, options: GlobalOptions = {}): Promise<void> {
@@ -13,7 +14,9 @@ export async function executeInfo(ctx: IOContext, pluginName: string, options: G
         loadLockfile(ctx.fs, getLockfilePath()),
     ]);
 
-    const indexes = await fetchAllIndexes(ctx.http, config.repos);
+    const cache = await loadCache(ctx.fs);
+    const { results: indexes, updatedCache } = await fetchAllIndexes(ctx.http, config.repos, { cache });
+    await saveCache(ctx.fs, updatedCache);
 
     for (const fi of indexes) {
         if (fi.error) {

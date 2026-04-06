@@ -3,11 +3,14 @@ import type { IOContext, GlobalOptions } from "../core/types.js";
 import { loadConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
 import { fetchAllIndexes, searchPlugins } from "../core/registry.js";
+import { loadCache, saveCache } from "../core/cache.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeSearch(ctx: IOContext, query: string, options: GlobalOptions = {}): Promise<void> {
     const config = await loadConfig(ctx.fs, options.config ?? getConfigPath());
-    const indexes = await fetchAllIndexes(ctx.http, config.repos);
+    const cache = await loadCache(ctx.fs);
+    const { results: indexes, updatedCache } = await fetchAllIndexes(ctx.http, config.repos, { cache });
+    await saveCache(ctx.fs, updatedCache);
 
     for (const fi of indexes) {
         if (fi.error) {

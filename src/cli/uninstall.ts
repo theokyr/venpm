@@ -5,6 +5,7 @@ import { loadConfig } from "../core/config.js";
 import { loadLockfile, saveLockfile, isInstalled, removeInstalled } from "../core/lockfile.js";
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
+import { loadCache, saveCache } from "../core/cache.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeUninstall(ctx: IOContext, pluginName: string, options: GlobalOptions): Promise<void> {
@@ -21,7 +22,9 @@ export async function executeUninstall(ctx: IOContext, pluginName: string, optio
     }
 
     // Warn if other installed plugins depend on this one
-    const fetchedIndexes = await fetchAllIndexes(ctx.http, config.repos);
+    const cache = await loadCache(ctx.fs);
+    const { results: fetchedIndexes, updatedCache } = await fetchAllIndexes(ctx.http, config.repos, { cache });
+    await saveCache(ctx.fs, updatedCache);
     const otherInstalled = Object.keys(lockfile.installed).filter(n => n !== pluginName);
     for (const other of otherInstalled) {
         const match = resolvePlugin(fetchedIndexes, other);

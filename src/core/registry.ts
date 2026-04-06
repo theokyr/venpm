@@ -1,4 +1,6 @@
 import type { HttpClient, RepoEntry, PluginIndex, PluginEntry } from "./types.js";
+import type { CacheEntry, IndexCache } from "./cache.js";
+import { getCachedEntry, setCachedEntry } from "./cache.js";
 
 export interface FetchedIndex {
     repoName: string;
@@ -12,15 +14,54 @@ export interface PluginMatch {
     entry: PluginEntry;
 }
 
+export interface FetchIndexOptions {
+    cached?: CacheEntry;
+}
+
+export interface FetchIndexResult {
+    index: PluginIndex;
+    updatedEntry?: CacheEntry;
+}
+
 /**
  * Fetch a single plugin index from `url` using `http`.
+ * If a cached entry is provided, sends conditional request headers.
+ * On 304 Not Modified, returns the cached body.
+ * On 200, updates the cache entry with new ETag/Last-Modified.
  * Throws on HTTP error or invalid JSON.
  */
-export async function fetchIndex(http: HttpClient, url: string): Promise<PluginIndex> {
-    const response = await http.fetch(url);
+export async function fetchIndex(
+    http: HttpClient,
+    url: string,
+    options?: FetchIndexOptions,
+): Promise<FetchIndexResult> {
+    const cached = options?.cached;
+    const headers: Record<string, string> = {};
+
+    if (cached?.etag) {
+        headers["If-None-Match"] = cached.etag;
+    }
+    if (cached?.lastModified) {
+        headers["If-Modified-Since"] = cached.lastModified;
+    }
+
+    const response = await http.fetch(url, Object.keys(headers).length > 0 ? { headers } : undefined);
+
+    // 304 Not Modified — use cached body
+    if (response.status === 304 && cached) {
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(cached.body);
+        } catch {
+            throw new Error(`Invalid JSON in cache for ${url}`);
+        }
+        return { index: parsed as PluginIndex };
+    }
+
     if (!response.ok) {
         throw new Error(`HTTP ${response.status} fetching ${url}`);
     }
+
     const text = await response.text();
     let parsed: unknown;
     try {
@@ -28,26 +69,75 @@ export async function fetchIndex(http: HttpClient, url: string): Promise<PluginI
     } catch {
         throw new Error(`Invalid JSON from ${url}`);
     }
-    return parsed as PluginIndex;
+
+    // Build updated cache entry from response headers
+    const etag = response.headers?.get("etag") ?? response.headers?.get("ETag") ?? undefined;
+    const lastModified = response.headers?.get("last-modified") ?? response.headers?.get("Last-Modified") ?? undefined;
+
+    const updatedEntry: CacheEntry = {
+        url,
+        etag: etag ?? undefined,
+        lastModified: lastModified ?? undefined,
+        body: text,
+        cachedAt: new Date().toISOString(),
+    };
+
+    return { index: parsed as PluginIndex, updatedEntry };
+}
+
+export interface FetchAllIndexesOptions {
+    cache?: IndexCache;
+}
+
+export interface FetchAllIndexesResult {
+    results: FetchedIndex[];
+    updatedCache: IndexCache;
 }
 
 /**
  * Fetch all indexes in parallel, capturing errors into FetchedIndex.error (never throwing).
+ * Accepts an optional cache; returns an updated cache with any new/refreshed entries.
  */
-export async function fetchAllIndexes(http: HttpClient, repos: RepoEntry[]): Promise<FetchedIndex[]> {
-    return Promise.all(
-        repos.map(async (repo): Promise<FetchedIndex> => {
+export async function fetchAllIndexes(
+    http: HttpClient,
+    repos: RepoEntry[],
+    options?: FetchAllIndexesOptions,
+): Promise<FetchAllIndexesResult> {
+    const inputCache: IndexCache = options?.cache ?? { entries: {} };
+
+    const pairs = await Promise.all(
+        repos.map(async (repo): Promise<{ fi: FetchedIndex; updatedEntry?: CacheEntry; url: string }> => {
+            const cached = getCachedEntry(inputCache, repo.url);
             try {
-                const index = await fetchIndex(http, repo.url);
-                return { repoName: repo.name, index };
+                const result = await fetchIndex(http, repo.url, cached ? { cached } : undefined);
+                return {
+                    fi: { repoName: repo.name, index: result.index },
+                    updatedEntry: result.updatedEntry,
+                    url: repo.url,
+                };
             } catch (err) {
                 return {
-                    repoName: repo.name,
-                    error: err instanceof Error ? err.message : String(err),
+                    fi: {
+                        repoName: repo.name,
+                        error: err instanceof Error ? err.message : String(err),
+                    },
+                    url: repo.url,
                 };
             }
         })
     );
+
+    let updatedCache = inputCache;
+    for (const { updatedEntry, url } of pairs) {
+        if (updatedEntry) {
+            updatedCache = setCachedEntry(updatedCache, url, updatedEntry);
+        }
+    }
+
+    return {
+        results: pairs.map(p => p.fi),
+        updatedCache,
+    };
 }
 
 /**

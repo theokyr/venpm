@@ -130,10 +130,15 @@ export interface FileSystem {
     copyDir(src: string, dest: string): Promise<void>;
 }
 
+export interface HttpResponseHeaders {
+    get(name: string): string | null;
+}
+
 export interface HttpClient {
     fetch(url: string, options?: { headers?: Record<string, string> }): Promise<{
         ok: boolean;
         status: number;
+        headers?: HttpResponseHeaders;
         text(): Promise<string>;
         json(): Promise<unknown>;
         arrayBuffer(): Promise<ArrayBuffer>;
@@ -164,11 +169,11 @@ export interface Prompter {
 }
 
 export interface Logger {
-    info(message: string, ...args: unknown[]): void;
-    warn(message: string, ...args: unknown[]): void;
-    error(message: string, ...args: unknown[]): void;
-    verbose(message: string, ...args: unknown[]): void;
-    success(message: string, ...args: unknown[]): void;
+    info(message: string): void;
+    warn(message: string): void;
+    error(message: string): void;
+    verbose(message: string): void;
+    success(message: string): void;
 }
 
 export interface IOContext {

@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { FileSystem, ShellRunner } from "./types.js";
 
 // ─── Deploy Paths ─────────────────────────────────────────────────────────────
@@ -62,7 +62,9 @@ export async function deployDist(fs: FileSystem, vencordPath: string): Promise<D
  */
 export async function restartDiscord(shell: ShellRunner, discordBinary: string): Promise<void> {
     // pkill returns 0 if at least one process was signalled, 1 if none found.
-    const killResult = await shell.exec("pkill", ["-f", discordBinary]);
+    // Use -x (exact name match) with basename to avoid matching unrelated processes.
+    const processName = basename(discordBinary);
+    const killResult = await shell.exec("pkill", ["-x", processName]);
     if (killResult.exitCode !== 0 && killResult.exitCode !== 1) {
         throw new Error(
             `pkill failed (exit ${killResult.exitCode}): ${killResult.stderr}`

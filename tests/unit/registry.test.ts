@@ -67,8 +67,8 @@ describe("fetchIndex", () => {
     it("fetches and parses a valid index", async () => {
         const http = mockHttp(() => mockResponse({ ok: true, body: JSON.stringify(VALID_INDEX) }));
         const result = await fetchIndex(http, "https://example.com/plugins.json");
-        expect(result.name).toBe("test-repo");
-        expect(result.plugins).toHaveProperty("CoolPlugin");
+        expect(result.index.name).toBe("test-repo");
+        expect(result.index.plugins).toHaveProperty("CoolPlugin");
     });
 
     it("throws on HTTP 404", async () => {
@@ -97,7 +97,7 @@ describe("fetchAllIndexes", () => {
             return mockResponse({ ok: true, body: JSON.stringify(SECOND_INDEX) });
         });
 
-        const results = await fetchAllIndexes(http, repos);
+        const { results } = await fetchAllIndexes(http, repos);
         expect(results).toHaveLength(2);
         expect(results[0].repoName).toBe("first");
         expect(results[0].index?.name).toBe("test-repo");
@@ -117,7 +117,7 @@ describe("fetchAllIndexes", () => {
             return mockResponse({ ok: false, status: 503 });
         });
 
-        const results = await fetchAllIndexes(http, repos);
+        const { results } = await fetchAllIndexes(http, repos);
         expect(results).toHaveLength(2);
         expect(results[0].index).toBeDefined();
         expect(results[0].error).toBeUndefined();
@@ -129,7 +129,7 @@ describe("fetchAllIndexes", () => {
         const repos: RepoEntry[] = [{ name: "broken", url: "https://example.com/broken.json" }];
         const http = mockHttp(() => mockResponse({ ok: true, body: "!!not-json" }));
 
-        const results = await fetchAllIndexes(http, repos);
+        const { results } = await fetchAllIndexes(http, repos);
         expect(results[0].error).toMatch(/Invalid JSON/);
         expect(results[0].index).toBeUndefined();
     });

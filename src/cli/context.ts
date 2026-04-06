@@ -65,6 +65,7 @@ export function createRealIOContext(options: GlobalOptions & { yes?: boolean; qu
             return {
                 ok: res.ok,
                 status: res.status,
+                headers: res.headers,
                 text: () => res.text(),
                 json: () => res.json() as Promise<unknown>,
                 arrayBuffer: () => res.arrayBuffer(),
