@@ -15,6 +15,7 @@ export const DEPLOY_PATHS: Record<"linux" | "darwin" | "win32", string> = {
 export interface DeployResult {
     deployed: boolean;
     deployPath?: string;
+    restarted: boolean;
 }
 
 // ─── Build ────────────────────────────────────────────────────────────────────
@@ -44,13 +45,13 @@ export async function deployDist(fs: FileSystem, vencordPath: string): Promise<D
 
     const deployedDirExists = await fs.exists(deployPath);
     if (!deployedDirExists) {
-        return { deployed: false };
+        return { deployed: false, restarted: false };
     }
 
     const srcDist = join(vencordPath, "dist");
     await fs.copyDir(srcDist, deployPath);
 
-    return { deployed: true, deployPath };
+    return { deployed: true, deployPath, restarted: false };
 }
 
 // ─── Restart ──────────────────────────────────────────────────────────────────
@@ -61,14 +62,26 @@ export async function deployDist(fs: FileSystem, vencordPath: string): Promise<D
  * skipped — Discord is still spawned so the caller can open it fresh.
  */
 export async function restartDiscord(shell: ShellRunner, discordBinary: string): Promise<void> {
-    // pkill returns 0 if at least one process was signalled, 1 if none found.
-    // Use -x (exact name match) with basename to avoid matching unrelated processes.
     const processName = basename(discordBinary);
-    const killResult = await shell.exec("pkill", ["-x", processName]);
-    if (killResult.exitCode !== 0 && killResult.exitCode !== 1) {
-        throw new Error(
-            `pkill failed (exit ${killResult.exitCode}): ${killResult.stderr}`
-        );
+
+    if (process.platform === "win32") {
+        // taskkill /IM matches image name; /F forces termination.
+        // Exit code 128 = process not found (not an error for us).
+        const killResult = await shell.exec("taskkill", ["/IM", `${processName}.exe`, "/F"]);
+        if (killResult.exitCode !== 0 && killResult.exitCode !== 128) {
+            throw new Error(
+                `taskkill failed (exit ${killResult.exitCode}): ${killResult.stderr}`
+            );
+        }
+    } else {
+        // pkill returns 0 if at least one process was signalled, 1 if none found.
+        // -x = exact name match, -i = case-insensitive (binary is "discord", comm is "Discord").
+        const killResult = await shell.exec("pkill", ["-xi", processName]);
+        if (killResult.exitCode !== 0 && killResult.exitCode !== 1) {
+            throw new Error(
+                `pkill failed (exit ${killResult.exitCode}): ${killResult.stderr}`
+            );
+        }
     }
 
     // Give the process a moment to fully exit before relaunching.
@@ -99,6 +112,7 @@ export async function buildAndDeploy(
 
     if (options.restart && options.discordBinary) {
         await restartDiscord(shell, options.discordBinary);
+        result.restarted = true;
     }
 
     return result;

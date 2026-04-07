@@ -11,7 +11,9 @@ export function registerRebuildCommand(program: Command): void {
     program
         .command("rebuild")
         .description("Rebuild Vencord after plugin changes")
-        .action(async () => {
+        .option("--no-restart", "Skip Discord restart without prompting")
+        .option("--restart", "Restart Discord without prompting")
+        .action(async (cmdOptions: { restart?: boolean; noRestart?: boolean }) => {
             const globalOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(globalOpts);
             const configPath = globalOpts.config ?? getConfigPath();
@@ -32,14 +34,19 @@ export function registerRebuildCommand(program: Command): void {
             // Resolve Discord binary for optional restart
             const discordBinary = config.discord.binary ?? await detectDiscordBinary(ctx.fs);
 
-            // Determine restart behaviour
+            // Determine restart behaviour — explicit flags override config
             let shouldRestart = false;
-            const restartMode = config.discord.restart;
-
-            if (restartMode === "always" && discordBinary) {
-                shouldRestart = true;
-            } else if (restartMode === "ask" && discordBinary) {
-                shouldRestart = await ctx.prompter.confirm("Restart Discord after rebuild?", false);
+            if (cmdOptions.noRestart) {
+                shouldRestart = false;
+            } else if (cmdOptions.restart) {
+                shouldRestart = !!discordBinary;
+            } else {
+                const restartMode = config.discord.restart;
+                if (restartMode === "always" && discordBinary) {
+                    shouldRestart = true;
+                } else if (restartMode === "ask" && discordBinary) {
+                    shouldRestart = await ctx.prompter.confirm("Restart Discord after rebuild?", false);
+                }
             }
 
             ctx.logger.info(`Building Vencord at ${vencordPath}...`);
@@ -54,7 +61,7 @@ export function registerRebuildCommand(program: Command): void {
                     writeJson(jsonSuccess({
                         built: true,
                         deployed: result.deployed,
-                        restarted: shouldRestart && !!discordBinary,
+                        restarted: result.restarted,
                     }));
                     return;
                 }
@@ -67,7 +74,7 @@ export function registerRebuildCommand(program: Command): void {
                     ctx.logger.warn("Deploy target not found — skipped copy step");
                 }
 
-                if (shouldRestart && discordBinary) {
+                if (result.restarted) {
                     ctx.logger.info("Discord restarted");
                 }
             } catch (err) {

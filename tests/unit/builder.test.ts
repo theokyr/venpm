@@ -181,7 +181,7 @@ describe("restartDiscord", () => {
         await vi.runAllTimersAsync();
         await promise;
 
-        expect(shell.exec).toHaveBeenCalledWith("pkill", ["-x", "discord"]);
+        expect(shell.exec).toHaveBeenCalledWith("pkill", ["-xi", "discord"]);
         expect(shell.spawn).toHaveBeenCalledWith("/usr/bin/discord", [], { detached: true });
     });
 

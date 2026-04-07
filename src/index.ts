@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from "node:module";
 import { Command } from "commander";
 import { registerInstallCommand } from "./cli/install.js";
 import { registerUninstallCommand } from "./cli/uninstall.js";
@@ -13,12 +14,15 @@ import { registerRebuildCommand } from "./cli/rebuild.js";
 import { registerDoctorCommand } from "./cli/doctor.js";
 import { registerValidateCommand } from "./cli/validate.js";
 
+const _require = createRequire(import.meta.url);
+const { version } = _require("../package.json") as { version: string };
+
 const program = new Command();
 
 program
     .name("venpm")
     .description("Vencord Plugin Manager — install and manage userplugins")
-    .version("0.1.0")
+    .version(version)
     .option("-y, --yes", "Automatically answer yes to all prompts")
     .option("--verbose", "Enable verbose output")
     .option("--quiet", "Suppress non-essential output")

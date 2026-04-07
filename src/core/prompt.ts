@@ -1,6 +1,6 @@
 import type { Prompter } from "./types.js";
 
-export function createPrompter(options: { yes: boolean }): Prompter {
+export function createPrompter(options: { yes: boolean; nonInteractive?: boolean }): Prompter {
     if (options.yes) {
         return {
             async confirm(_message: string, defaultValue = true): Promise<boolean> {
@@ -12,6 +12,20 @@ export function createPrompter(options: { yes: boolean }): Prompter {
             async select<T extends string>(_message: string, choices: { value: T; label: string }[]): Promise<T> {
                 return choices[0].value;
             },
+        };
+    }
+
+    if (options.nonInteractive) {
+        const bail = (message: string): never => {
+            throw new Error(
+                `Cannot prompt in non-interactive mode (no TTY): "${message}". ` +
+                `Use --yes to auto-confirm, or set config values explicitly.`,
+            );
+        };
+        return {
+            async confirm(message: string): Promise<boolean> { return bail(message); },
+            async input(message: string): Promise<string> { return bail(message); },
+            async select<T extends string>(message: string): Promise<T> { return bail(message); },
         };
     }
 

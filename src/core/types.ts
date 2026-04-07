@@ -190,6 +190,8 @@ export interface IOContext {
 export interface GlobalOptions {
     config?: string;
     verbose?: boolean;
+    quiet?: boolean;
+    yes?: boolean;
     json?: boolean;
 }
 
