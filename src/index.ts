@@ -26,7 +26,9 @@ program
     .option("-y, --yes", "Automatically answer yes to all prompts")
     .option("--verbose", "Enable verbose output")
     .option("--quiet", "Suppress non-essential output")
-    .option("--json", "Output structured JSON instead of human-readable text");
+    .option("--json", "Output structured JSON instead of human-readable text")
+    .option("--json-stream", "Output events as NDJSON")
+    .option("--no-color", "Disable colored output");
 
 registerInstallCommand(program);
 registerUninstallCommand(program);
