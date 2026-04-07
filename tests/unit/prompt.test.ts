@@ -46,3 +46,27 @@ describe("createPrompter (yes=true)", () => {
         expect(await prompter.select("Pick one:", choices)).toBe("a");
     });
 });
+
+describe("createPrompter (yes=true) styled contract", () => {
+    const prompter = createPrompter({ yes: true });
+
+    it("auto-confirms with default true", async () => {
+        expect(await prompter.confirm("Continue?")).toBe(true);
+    });
+
+    it("auto-confirms with default false", async () => {
+        expect(await prompter.confirm("Continue?", false)).toBe(false);
+    });
+
+    it("auto-returns default for input", async () => {
+        expect(await prompter.input("Name?", "Alice")).toBe("Alice");
+    });
+
+    it("auto-selects first choice", async () => {
+        const choices = [
+            { value: "a" as const, label: "Option A" },
+            { value: "b" as const, label: "Option B" },
+        ];
+        expect(await prompter.select("Pick:", choices)).toBe("a");
+    });
+});
