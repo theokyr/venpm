@@ -60,12 +60,20 @@ function makeCtx(fs: FileSystem, confirmResult = true): IOContext {
             input: vi.fn(async () => ""),
             select: vi.fn(async () => "" as never),
         },
-        logger: {
-            info: vi.fn(),
+        renderer: {
+            text: vi.fn(),
+            heading: vi.fn(),
+            success: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
             verbose: vi.fn(),
-            success: vi.fn(),
+            dim: vi.fn(),
+            table: vi.fn(),
+            keyValue: vi.fn(),
+            list: vi.fn(),
+            progress: vi.fn(() => ({ update: vi.fn(), succeed: vi.fn(), fail: vi.fn() })),
+            write: vi.fn(),
+            finish: vi.fn(),
         },
     };
 }
@@ -136,7 +144,9 @@ describe("executeUninstall", () => {
 
         await executeUninstall(ctx, "channelTabs", { config: CONFIG_PATH });
 
-        expect(ctx.logger.error).toHaveBeenCalledWith(expect.stringContaining("channelTabs"));
+        expect(ctx.renderer.error).toHaveBeenCalledWith(
+            expect.objectContaining({ message: expect.stringContaining("channelTabs") }),
+        );
         expect(process.exitCode).toBe(1);
 
         process.exitCode = originalExitCode;

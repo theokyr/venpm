@@ -6,7 +6,7 @@ import type {
     GitClient,
     ShellRunner,
     Prompter,
-    Logger,
+    Renderer,
     LockfileData,
     Config,
     InstallOptions,
@@ -81,7 +81,7 @@ function createMockContext(overrides?: {
     fs: jest.Mocked<FileSystem>;
     shell: jest.Mocked<ShellRunner>;
     prompter: jest.Mocked<Prompter>;
-    logger: jest.Mocked<Logger>;
+    renderer: jest.Mocked<Renderer>;
 } {
     const gitAvailable = overrides?.gitAvailable ?? true;
     const lockfileData: LockfileData = overrides?.lockfile ?? { installed: {} };
@@ -167,15 +167,23 @@ function createMockContext(overrides?: {
         select: vi.fn().mockResolvedValue(""),
     } as any;
 
-    const logger: jest.Mocked<Logger> = {
-        info: vi.fn(),
+    const renderer: jest.Mocked<Renderer> = {
+        text: vi.fn(),
+        heading: vi.fn(),
+        success: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
         verbose: vi.fn(),
-        success: vi.fn(),
+        dim: vi.fn(),
+        table: vi.fn(),
+        keyValue: vi.fn(),
+        list: vi.fn(),
+        progress: vi.fn(() => ({ update: vi.fn(), succeed: vi.fn(), fail: vi.fn() })),
+        write: vi.fn(),
+        finish: vi.fn(),
     } as any;
 
-    return { fs, http, git, shell, prompter, logger };
+    return { fs, http, git, shell, prompter, renderer };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -202,7 +210,7 @@ describe("executeInstall", () => {
         );
 
         // success should have been logged
-        expect(ctx.logger.success).toHaveBeenCalledWith(
+        expect(ctx.renderer.success).toHaveBeenCalledWith(
             expect.stringContaining("simplePlugin"),
         );
 
@@ -226,7 +234,7 @@ describe("executeInstall", () => {
         expect(cloneUrls).toContain("https://example.com/depPlugin.git");
         expect(cloneUrls).toContain("https://example.com/pluginWithDeps.git");
 
-        expect(ctx.logger.success).toHaveBeenCalledWith(
+        expect(ctx.renderer.success).toHaveBeenCalledWith(
             expect.stringContaining("pluginWithDeps"),
         );
     });
@@ -265,8 +273,8 @@ describe("executeInstall", () => {
 
         await executeInstall(ctx, "nonExistentPlugin", options);
 
-        expect(ctx.logger.error).toHaveBeenCalledWith(
-            expect.stringContaining("nonExistentPlugin"),
+        expect(ctx.renderer.error).toHaveBeenCalledWith(
+            expect.objectContaining({ message: expect.stringContaining("nonExistentPlugin") }),
         );
         expect(process.exitCode).toBe(1);
 
@@ -288,7 +296,7 @@ describe("executeInstall", () => {
             "https://cdn.example.com/tarballPlugin-0.5.0.tar.gz",
         );
 
-        expect(ctx.logger.success).toHaveBeenCalledWith(
+        expect(ctx.renderer.success).toHaveBeenCalledWith(
             expect.stringContaining("tarballPlugin"),
         );
     });
@@ -303,7 +311,7 @@ describe("executeInstall", () => {
         expect(ctx.http.fetch).toHaveBeenCalledWith(
             "https://cdn.example.com/tarballPlugin-0.5.0.tar.gz",
         );
-        expect(ctx.logger.success).toHaveBeenCalledWith(
+        expect(ctx.renderer.success).toHaveBeenCalledWith(
             expect.stringContaining("tarballPlugin"),
         );
     });
@@ -320,7 +328,7 @@ describe("executeInstall", () => {
             expect.anything(),
             expect.anything(),
         );
-        expect(ctx.logger.info).toHaveBeenCalledWith(
+        expect(ctx.renderer.text).toHaveBeenCalledWith(
             expect.stringContaining("cancelled"),
         );
     });
@@ -335,7 +343,7 @@ describe("executeInstall", () => {
             "/home/user/dev/myPlugin",
             expect.stringContaining("myPlugin"),
         );
-        expect(ctx.logger.success).toHaveBeenCalledWith(
+        expect(ctx.renderer.success).toHaveBeenCalledWith(
             expect.stringContaining("myPlugin"),
         );
 
@@ -352,7 +360,7 @@ describe("executeInstall", () => {
         await executeInstall(ctx, "simplePlugin", options);
 
         expect(ctx.git.clone).toHaveBeenCalledOnce();
-        expect(ctx.logger.success).toHaveBeenCalledWith(
+        expect(ctx.renderer.success).toHaveBeenCalledWith(
             expect.stringContaining("simplePlugin"),
         );
     });
@@ -363,8 +371,8 @@ describe("executeInstall", () => {
 
         await executeInstall(ctx, "simplePlugin", options);
 
-        expect(ctx.logger.error).toHaveBeenCalledWith(
-            expect.stringContaining("unknown-repo"),
+        expect(ctx.renderer.error).toHaveBeenCalledWith(
+            expect.objectContaining({ message: expect.stringContaining("unknown-repo") }),
         );
         expect(process.exitCode).toBe(1);
     });
