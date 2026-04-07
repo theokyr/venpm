@@ -26,10 +26,11 @@ Vencord's userplugin ecosystem is powerful but fragmented. Plugin authors host c
 **venpm fixes this.** Authors publish a small `plugins.json` index alongside their code. Users install plugins with a single command. venpm handles dependencies, version pinning, sparse git checkouts, and Vencord rebuilds automatically.
 
 ```
-venpm install BetterFolders
-  Resolved BetterFolders@1.2.0 from theokyr/vencord-plugins
+venpm install minimalCallBar
+  Resolved minimalCallBar@0.1.0 from kamaras-plugins
+  Optional: settingsHub, channelTabs (install with venpm install <name>)
   Fetching via git (sparse checkout)...
-  Installed BetterFolders@1.2.0
+  Installed minimalCallBar@0.1.0
   Rebuilding Vencord... done
 ```
 
