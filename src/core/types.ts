@@ -168,21 +168,13 @@ export interface Prompter {
     select<T extends string>(message: string, choices: { value: T; label: string }[]): Promise<T>;
 }
 
-export interface Logger {
-    info(message: string): void;
-    warn(message: string): void;
-    error(message: string): void;
-    verbose(message: string): void;
-    success(message: string): void;
-}
-
 export interface IOContext {
     fs: FileSystem;
     http: HttpClient;
     git: GitClient;
     shell: ShellRunner;
     prompter: Prompter;
-    logger: Logger;
+    renderer: Renderer;
 }
 
 // ─── CLI Options ─────────────────────────────────────────────────────────────
@@ -193,6 +185,7 @@ export interface GlobalOptions {
     quiet?: boolean;
     yes?: boolean;
     json?: boolean;
+    jsonStream?: boolean;
 }
 
 export interface InstallOptions extends GlobalOptions {
@@ -213,3 +206,39 @@ export interface CreateOptions extends GlobalOptions {
 export interface ValidateOptions extends GlobalOptions {
     strict?: boolean;
 }
+
+// ─── Renderer (replaces Logger) ─────────────────────────────────────────────
+
+export type { ErrorInfo } from "./errors.js";
+export type { ProgressHandle } from "./progress.js";
+
+export interface Renderer {
+    text(message: string): void;
+    heading(message: string): void;
+    success(message: string): void;
+    warn(message: string): void;
+    error(info: import("./errors.js").ErrorInfo): void;
+    verbose(message: string): void;
+    dim(message: string): void;
+
+    table(headers: string[], rows: string[][]): void;
+    keyValue(pairs: [string, string][]): void;
+    list(items: string[]): void;
+
+    progress(id: string, message: string): import("./progress.js").ProgressHandle;
+
+    write(data: string): void;
+
+    /** Called when the command is done — renderers that buffer (JsonRenderer) flush here. */
+    finish(success: boolean, data?: unknown, warnings?: string[]): void;
+}
+
+// ─── Stream Events (for --json-stream) ──────────────────────────────────────
+
+export type StreamEvent =
+    | { type: "progress"; id: string; message: string }
+    | { type: "progress"; id: string; status: "done" | "fail"; message: string }
+    | { type: "warning"; message: string; code?: string }
+    | { type: "log"; message: string }
+    | { type: "result"; success: true; data: unknown; warnings?: string[] }
+    | { type: "error"; success: false; error: import("./errors.js").ErrorInfo };
