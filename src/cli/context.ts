@@ -140,7 +140,7 @@ export function createRealIOContext(options: GlobalOptions): IOContext {
                     cwd: spawnOptions?.cwd,
                     detached: spawnOptions?.detached,
                     env: spawnOptions?.env ? { ...process.env, ...spawnOptions.env } : undefined,
-                    stdio: "inherit",
+                    stdio: "ignore",
                 });
                 if (spawnOptions?.detached) {
                     child.unref();
