@@ -31,7 +31,7 @@ src/
     fetcher.ts                   # Git clone (sparse checkout for monorepos), tarball extract, local symlink
     builder.ts                   # Vencord pnpm build, deploy dist, Discord restart
     cache.ts                     # HTTP index caching with ETag/Last-Modified
-    prompt.ts                    # Interactive prompts (--yes auto-confirms)
+    prompt.ts                    # Interactive prompts (--yes auto-confirms, non-TTY errors)
     log.ts                       # Structured output (--verbose/--quiet)
   cli/                           # Command handlers (glue code, compose core modules)
     context.ts                   # createRealIOContext() — wires real Node.js I/O to IOContext
@@ -60,10 +60,14 @@ Every core module accepts its I/O dependencies as parameters — never imports `
 - `http` — HTTP client (fetch with headers)
 - `git` — git operations (clone with sparse checkout, pull, revParse, checkout)
 - `shell` — command execution (exec, spawn with detached support)
-- `prompter` — interactive prompts (confirm, input, select)
+- `prompter` — interactive prompts (confirm, input, select); has `nonInteractive` mode that throws actionable errors when stdin is not a TTY (CI, agentic shells) instead of auto-confirming
 - `logger` — structured output (info, warn, error, verbose, success)
 
 `src/cli/context.ts` provides `createRealIOContext()` which wires real Node.js APIs. Tests inject mocks.
+
+### Non-Interactive Mode
+
+When stdin is not a TTY, prompts throw errors with instructions to use `--yes` or set config explicitly. This is intentional — auto-confirming destructive operations in CI/agentic environments is not safe. The `--yes` flag must be passed explicitly.
 
 ### Dependency Rules
 
