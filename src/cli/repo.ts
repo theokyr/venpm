@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import type { GlobalOptions } from "../core/types.js";
 import { loadConfig, saveConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
-import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
+import { ErrorCode, makeError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 export function registerRepoCommand(program: Command): void {
@@ -17,6 +17,7 @@ export function registerRepoCommand(program: Command): void {
         .action(async (url: string, options: { name?: string }) => {
             const parentOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(parentOpts);
+            const { renderer } = ctx;
             const configPath = parentOpts.config ?? getConfigPath();
             const config = await loadConfig(ctx.fs, configPath);
 
@@ -31,11 +32,8 @@ export function registerRepoCommand(program: Command): void {
 
             const existing = config.repos.find(r => r.name === name);
             if (existing) {
-                if (parentOpts.json) {
-                    writeJson(jsonError(`Repository with name "${name}" already exists (${existing.url})`));
-                    return;
-                }
-                ctx.logger.error(`Repository with name "${name}" already exists (${existing.url})`);
+                renderer.error(makeError(ErrorCode.REPO_FETCH_FAILED, `Repository with name "${name}" already exists (${existing.url})`));
+                renderer.finish(false);
                 process.exitCode = 1;
                 return;
             }
@@ -43,11 +41,8 @@ export function registerRepoCommand(program: Command): void {
             config.repos.push({ name, url });
             await saveConfig(ctx.fs, configPath, config);
 
-            if (parentOpts.json) {
-                writeJson(jsonSuccess({ name, url }));
-                return;
-            }
-            ctx.logger.success(`Added repository "${name}" → ${url}`);
+            renderer.success(`Added repository "${name}" → ${url}`);
+            renderer.finish(true, { name, url });
         });
 
     repo
@@ -56,16 +51,17 @@ export function registerRepoCommand(program: Command): void {
         .action(async (name: string) => {
             const parentOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(parentOpts);
+            const { renderer } = ctx;
             const configPath = parentOpts.config ?? getConfigPath();
             const config = await loadConfig(ctx.fs, configPath);
 
             const index = config.repos.findIndex(r => r.name === name);
             if (index === -1) {
-                if (parentOpts.json) {
-                    writeJson(jsonError(`Repository "${name}" not found`));
-                    return;
-                }
-                ctx.logger.error(`Repository "${name}" not found`);
+                const repoNames = config.repos.map(r => r.name);
+                renderer.error(makeError(ErrorCode.REPO_FETCH_FAILED, `Repository "${name}" not found`, {
+                    candidates: repoNames.length > 0 ? repoNames : undefined,
+                }));
+                renderer.finish(false);
                 process.exitCode = 1;
                 return;
             }
@@ -73,11 +69,8 @@ export function registerRepoCommand(program: Command): void {
             config.repos.splice(index, 1);
             await saveConfig(ctx.fs, configPath, config);
 
-            if (parentOpts.json) {
-                writeJson(jsonSuccess({ removed: name }));
-                return;
-            }
-            ctx.logger.success(`Removed repository "${name}"`);
+            renderer.success(`Removed repository "${name}"`);
+            renderer.finish(true, { removed: name });
         });
 
     repo
@@ -86,22 +79,22 @@ export function registerRepoCommand(program: Command): void {
         .action(async () => {
             const parentOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(parentOpts);
+            const { renderer } = ctx;
             const configPath = parentOpts.config ?? getConfigPath();
             const config = await loadConfig(ctx.fs, configPath);
 
-            if (parentOpts.json) {
-                writeJson(jsonSuccess({ repos: config.repos.map(r => ({ name: r.name, url: r.url })) }));
-                return;
-            }
-
             if (config.repos.length === 0) {
-                ctx.logger.info("No repositories configured");
+                renderer.text("No repositories configured");
+                renderer.finish(true, { repos: [] });
                 return;
             }
 
-            ctx.logger.info(`Configured repositories (${config.repos.length}):\n`);
-            for (const r of config.repos) {
-                ctx.logger.info(`  ${r.name}  ${r.url}`);
-            }
+            renderer.heading(`Configured repositories (${config.repos.length})`);
+            renderer.table(
+                ["Name", "URL"],
+                config.repos.map(r => [r.name, r.url]),
+            );
+
+            renderer.finish(true, { repos: config.repos.map(r => ({ name: r.name, url: r.url })) });
         });
 }

@@ -2,7 +2,8 @@ import type { Command } from "commander";
 import type { GlobalOptions } from "../core/types.js";
 import { loadConfig, saveConfig } from "../core/config.js";
 import { getConfigPath, getConfigDir } from "../core/paths.js";
-import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
+import { ErrorCode, makeError } from "../core/errors.js";
+import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 
 function getNestedValue(obj: unknown, keys: string[]): unknown {
@@ -40,6 +41,20 @@ function coerceValue(raw: string): unknown {
     }
 }
 
+/** Collect all dotted key paths from a config object for fuzzy matching. */
+function collectConfigKeys(obj: unknown, prefix = ""): string[] {
+    if (obj === null || obj === undefined || typeof obj !== "object") return [];
+    const keys: string[] = [];
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+        const path = prefix ? `${prefix}.${k}` : k;
+        keys.push(path);
+        if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+            keys.push(...collectConfigKeys(v, path));
+        }
+    }
+    return keys;
+}
+
 export function registerConfigCommand(program: Command): void {
     const config = program
         .command("config")
@@ -51,6 +66,7 @@ export function registerConfigCommand(program: Command): void {
         .action(async (key: string, value: string) => {
             const parentOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(parentOpts);
+            const { renderer } = ctx;
             const configPath = parentOpts.config ?? getConfigPath();
             const cfg = await loadConfig(ctx.fs, configPath);
 
@@ -59,11 +75,8 @@ export function registerConfigCommand(program: Command): void {
             setNestedValue(cfg as unknown as Record<string, unknown>, keys, coerced);
             await saveConfig(ctx.fs, configPath, cfg);
 
-            if (parentOpts.json) {
-                writeJson(jsonSuccess({ key, value: coerced }));
-                return;
-            }
-            ctx.logger.success(`Set ${key} = ${JSON.stringify(coerced)}`);
+            renderer.success(`Set ${key} = ${JSON.stringify(coerced)}`);
+            renderer.finish(true, { key, value: coerced });
         });
 
     config
@@ -72,25 +85,22 @@ export function registerConfigCommand(program: Command): void {
         .action(async (key: string) => {
             const parentOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(parentOpts);
+            const { renderer } = ctx;
             const configPath = parentOpts.config ?? getConfigPath();
             const cfg = await loadConfig(ctx.fs, configPath);
 
             const keys = key.split(".");
             const value = getNestedValue(cfg, keys);
             if (value === undefined) {
-                if (parentOpts.json) {
-                    writeJson(jsonError(`Key "${key}" not found in config`));
-                    return;
-                }
-                ctx.logger.error(`Key "${key}" not found in config`);
+                const allKeys = collectConfigKeys(cfg);
+                const candidates = findCandidates(key, allKeys);
+                renderer.error(makeError(ErrorCode.PLUGIN_NOT_FOUND, `Key "${key}" not found in config`, { candidates }));
+                renderer.finish(false);
                 process.exitCode = 1;
                 return;
             }
-            if (parentOpts.json) {
-                writeJson(jsonSuccess({ key, value }));
-                return;
-            }
-            ctx.logger.info(JSON.stringify(value, null, 2));
+            renderer.text(JSON.stringify(value, null, 2));
+            renderer.finish(true, { key, value });
         });
 
     config
@@ -98,11 +108,9 @@ export function registerConfigCommand(program: Command): void {
         .description("Print the venpm config directory path")
         .action(() => {
             const parentOpts = program.opts<GlobalOptions>();
-            if (parentOpts.json) {
-                writeJson(jsonSuccess({ path: getConfigDir() }));
-                return;
-            }
             const ctx = createRealIOContext(parentOpts);
-            ctx.logger.info(getConfigDir());
+            const { renderer } = ctx;
+            renderer.text(getConfigDir());
+            renderer.finish(true, { path: getConfigDir() });
         });
 }

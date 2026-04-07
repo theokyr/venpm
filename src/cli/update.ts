@@ -7,11 +7,13 @@ import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
 import { fetchPlugin } from "../core/fetcher.js";
-import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
+import { ErrorCode, makeError } from "../core/errors.js";
+import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 import { selectMethodFromSource } from "../core/resolver.js";
 
 export async function executeUpdate(ctx: IOContext, pluginName: string | undefined, options: GlobalOptions): Promise<void> {
+    const { renderer } = ctx;
     const configPath = options.config ?? getConfigPath();
     const lockfilePath = getLockfilePath();
 
@@ -21,8 +23,8 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
     const installedEntries = Object.entries(lockfile.installed);
 
     if (installedEntries.length === 0) {
-        if (options.json) { writeJson(jsonSuccess({ updated: [], skipped: [] })); return; }
-        ctx.logger.info("No plugins installed.");
+        renderer.text("No plugins installed.");
+        renderer.finish(true, { updated: [], skipped: [] });
         return;
     }
 
@@ -31,12 +33,10 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
     if (pluginName !== undefined) {
         const info = getInstalled(lockfile, pluginName);
         if (!info) {
-            if (options.json) {
-                writeJson(jsonError(`Plugin "${pluginName}" is not installed.`));
-                process.exitCode = 1;
-                return;
-            }
-            ctx.logger.error(`Plugin "${pluginName}" is not installed.`);
+            const installedNames = Object.keys(lockfile.installed);
+            const candidates = findCandidates(pluginName, installedNames);
+            renderer.error(makeError(ErrorCode.PLUGIN_NOT_INSTALLED, `Plugin "${pluginName}" is not installed.`, { candidates }));
+            renderer.finish(false);
             process.exitCode = 1;
             return;
         }
@@ -49,36 +49,38 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
     const updateable = targets.filter(name => {
         const info = getInstalled(lockfile, name)!;
         if (info.pinned) {
-            ctx.logger.info(`Skipping pinned plugin: ${name}`);
+            renderer.verbose(`Skipping pinned plugin: ${name}`);
             return false;
         }
         if (info.method === "local") {
-            ctx.logger.info(`Skipping local plugin: ${name}`);
+            renderer.verbose(`Skipping local plugin: ${name}`);
             return false;
         }
         return true;
     });
 
     if (updateable.length === 0) {
-        if (options.json) { writeJson(jsonSuccess({ updated: [], skipped: [] })); return; }
-        ctx.logger.info("Nothing to update.");
+        renderer.text("Nothing to update.");
+        renderer.finish(true, { updated: [], skipped: [] });
         return;
     }
 
+    const p = renderer.progress("fetch-indexes", "Fetching indexes...");
     const cache = await loadCache(ctx.fs);
     const { results: indexes, updatedCache } = await fetchAllIndexes(ctx.http, config.repos, { cache });
     await saveCache(ctx.fs, updatedCache);
+    p.succeed(`${indexes.filter(fi => fi.index).length} repo(s) fetched`);
 
     for (const fi of indexes) {
         if (fi.error) {
-            ctx.logger.warn(`Failed to fetch index from "${fi.repoName}": ${fi.error}`);
+            renderer.warn(`Failed to fetch index from "${fi.repoName}": ${fi.error}`);
         }
     }
 
     const gitAvailable = await ctx.git.available();
 
     let updatedCount = 0;
-    const updatedEntries: { name: string; from: string; to: string }[] = [];
+    const updatedResults: { name: string; from: string; to: string }[] = [];
     const skippedNames: string[] = [];
 
     for (const name of updateable) {
@@ -86,7 +88,7 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
         const match = resolvePlugin(indexes, name, installedInfo.repo);
 
         if (!match) {
-            ctx.logger.warn(`Plugin "${name}" not found in repo "${installedInfo.repo}" — skipping`);
+            renderer.warn(`Plugin "${name}" not found in repo "${installedInfo.repo}" — skipping`);
             skippedNames.push(name);
             continue;
         }
@@ -94,12 +96,12 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
         const latestVersion = match.entry.version;
 
         if (latestVersion === installedInfo.version) {
-            ctx.logger.verbose(`${name} is up to date (${installedInfo.version})`);
+            renderer.verbose(`${name} is up to date (${installedInfo.version})`);
             skippedNames.push(name);
             continue;
         }
 
-        ctx.logger.info(`Updating ${name}: ${installedInfo.version} → ${latestVersion}`);
+        const up = renderer.progress(`update-${name}`, `Updating ${name}: ${installedInfo.version} → ${latestVersion}`);
 
         // Remove old plugin directory if vencord.path is configured
         if (config.vencord.path !== null) {
@@ -144,23 +146,20 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
             });
         }
 
-        ctx.logger.success(`Updated ${name} to ${latestVersion}`);
-        updatedEntries.push({ name, from: installedInfo.version, to: latestVersion });
+        up.succeed(`${name}: ${installedInfo.version} → ${latestVersion}`);
+        updatedResults.push({ name, from: installedInfo.version, to: latestVersion });
         updatedCount++;
     }
 
     await saveLockfile(ctx.fs, lockfilePath, lockfile);
 
-    if (options.json) {
-        writeJson(jsonSuccess({ updated: updatedEntries, skipped: skippedNames }));
-        return;
+    if (updatedCount === 0) {
+        renderer.text("All plugins are up to date.");
+    } else {
+        renderer.success(`Updated ${updatedCount} plugin(s).`);
     }
 
-    if (updatedCount === 0) {
-        ctx.logger.info("All plugins are up to date.");
-    } else {
-        ctx.logger.success(`Updated ${updatedCount} plugin(s).`);
-    }
+    renderer.finish(true, { updated: updatedResults, skipped: skippedNames });
 }
 
 export function registerUpdateCommand(program: Command): void {

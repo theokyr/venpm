@@ -6,10 +6,12 @@ import { loadLockfile, saveLockfile, isInstalled, removeInstalled } from "../cor
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
-import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
+import { ErrorCode, makeError } from "../core/errors.js";
+import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeUninstall(ctx: IOContext, pluginName: string, options: GlobalOptions): Promise<void> {
+    const { renderer } = ctx;
     const configPath = options.config ?? getConfigPath();
     const lockfilePath = getLockfilePath();
 
@@ -17,12 +19,10 @@ export async function executeUninstall(ctx: IOContext, pluginName: string, optio
     let lockfile = await loadLockfile(ctx.fs, lockfilePath);
 
     if (!isInstalled(lockfile, pluginName)) {
-        if (options.json) {
-            process.exitCode = 1;
-            writeJson(jsonError(`Plugin "${pluginName}" is not installed.`));
-            return;
-        }
-        ctx.logger.error(`Plugin "${pluginName}" is not installed.`);
+        const installedNames = Object.keys(lockfile.installed);
+        const candidates = findCandidates(pluginName, installedNames);
+        renderer.error(makeError(ErrorCode.PLUGIN_NOT_INSTALLED, `Plugin "${pluginName}" is not installed.`, { candidates }));
+        renderer.finish(false);
         process.exitCode = 1;
         return;
     }
@@ -35,30 +35,28 @@ export async function executeUninstall(ctx: IOContext, pluginName: string, optio
     for (const other of otherInstalled) {
         const match = resolvePlugin(fetchedIndexes, other);
         if (match?.entry.dependencies?.includes(pluginName)) {
-            ctx.logger.warn(`"${other}" depends on this plugin`);
+            renderer.warn(`"${other}" depends on this plugin`);
         }
     }
 
     const confirmed = await ctx.prompter.confirm(`Remove plugin "${pluginName}"?`, true);
     if (!confirmed) {
-        ctx.logger.info("Uninstall cancelled.");
+        renderer.text("Uninstall cancelled.");
+        renderer.finish(false);
         return;
     }
 
     if (config.vencord.path !== null) {
         const pluginDir = join(config.vencord.path, "src", "userplugins", pluginName);
         await ctx.fs.rm(pluginDir, { recursive: true, force: true });
-        ctx.logger.success(`Removed plugin directory: ${pluginDir}`);
+        renderer.success(`Removed plugin directory: ${pluginDir}`);
     }
 
     lockfile = removeInstalled(lockfile, pluginName);
     await saveLockfile(ctx.fs, lockfilePath, lockfile);
 
-    if (options.json) {
-        writeJson(jsonSuccess({ removed: pluginName }));
-        return;
-    }
-    ctx.logger.success(`Uninstalled "${pluginName}".`);
+    renderer.success(`Uninstalled "${pluginName}".`);
+    renderer.finish(true, { removed: pluginName });
 }
 
 export function registerUninstallCommand(program: Command): void {
