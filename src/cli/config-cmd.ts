@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import type { GlobalOptions } from "../core/types.js";
 import { loadConfig, saveConfig } from "../core/config.js";
 import { getConfigPath, getConfigDir } from "../core/paths.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 
@@ -96,7 +96,7 @@ export function registerConfigCommand(program: Command): void {
                 const candidates = findCandidates(key, allKeys);
                 renderer.error(makeError(ErrorCode.PLUGIN_NOT_FOUND, `Key "${key}" not found in config`, { candidates }));
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.PLUGIN_NOT_FOUND);
                 return;
             }
             renderer.text(JSON.stringify(value, null, 2));

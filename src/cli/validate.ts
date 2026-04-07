@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { join } from "node:path";
 import type { GlobalOptions, PluginIndex, PluginEntry } from "../core/types.js";
 import { validateIndex } from "../core/schema.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 export function registerValidateCommand(program: Command): void {
@@ -22,7 +22,7 @@ export function registerValidateCommand(program: Command): void {
             } catch {
                 renderer.error(makeError(ErrorCode.SCHEMA_INVALID, `Cannot read file: ${targetPath}`));
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.SCHEMA_INVALID);
                 return;
             }
 
@@ -32,7 +32,7 @@ export function registerValidateCommand(program: Command): void {
             } catch (err) {
                 renderer.error(makeError(ErrorCode.SCHEMA_INVALID, `Invalid JSON: ${(err as Error).message}`));
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.SCHEMA_INVALID);
                 return;
             }
 
@@ -90,7 +90,7 @@ export function registerValidateCommand(program: Command): void {
                     renderer.text(`  ${e}`);
                 }
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.SCHEMA_INVALID);
                 return;
             }
 

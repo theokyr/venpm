@@ -1,7 +1,7 @@
 import { join, dirname, basename } from "node:path";
 import type { Command } from "commander";
 import type { FileSystem, IOContext, GlobalOptions } from "../core/types.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ export function registerCreateCommand(program: Command): void {
             } catch (err) {
                 renderer.error(makeError(ErrorCode.BUILD_FAILED, (err as Error).message));
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.BUILD_FAILED);
             }
         });
 }

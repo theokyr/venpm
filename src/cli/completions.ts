@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import type { GlobalOptions } from "../core/types.js";
+import { ExitCode } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 const BASH_COMPLETION = `_venpm_completions() {
@@ -76,7 +77,7 @@ export function registerCompletionsCommand(program: Command): void {
                 default:
                     ctx.renderer.text(`Unknown shell: ${target}. Supported: bash, zsh, fish`);
                     ctx.renderer.text(`Usage: eval "$(venpm completions zsh)"`);
-                    process.exitCode = 1;
+                    process.exitCode = ExitCode.USAGE_ERROR;
             }
         });
 }

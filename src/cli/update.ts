@@ -7,7 +7,7 @@ import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
 import { fetchPlugin } from "../core/fetcher.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 import { selectMethodFromSource } from "../core/resolver.js";
@@ -37,7 +37,7 @@ export async function executeUpdate(ctx: IOContext, pluginName: string | undefin
             const candidates = findCandidates(pluginName, installedNames);
             renderer.error(makeError(ErrorCode.PLUGIN_NOT_INSTALLED, `Plugin "${pluginName}" is not installed.`, { candidates }));
             renderer.finish(false);
-            process.exitCode = 1;
+            process.exitCode = exitCodeForError(ErrorCode.PLUGIN_NOT_INSTALLED);
             return;
         }
         targets = [pluginName];

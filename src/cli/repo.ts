@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import type { GlobalOptions } from "../core/types.js";
 import { loadConfig, saveConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 export function registerRepoCommand(program: Command): void {
@@ -34,7 +34,7 @@ export function registerRepoCommand(program: Command): void {
             if (existing) {
                 renderer.error(makeError(ErrorCode.REPO_FETCH_FAILED, `Repository with name "${name}" already exists (${existing.url})`));
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.REPO_FETCH_FAILED);
                 return;
             }
 
@@ -62,7 +62,7 @@ export function registerRepoCommand(program: Command): void {
                     candidates: repoNames.length > 0 ? repoNames : undefined,
                 }));
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.REPO_FETCH_FAILED);
                 return;
             }
 

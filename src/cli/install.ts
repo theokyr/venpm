@@ -10,7 +10,7 @@ import { fetchPlugin, fetchViaLocal } from "../core/fetcher.js";
 import { buildAndDeploy } from "../core/builder.js";
 import { detectVencordPath, detectDiscordBinary } from "../core/detect.js";
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 
@@ -35,7 +35,7 @@ export async function executeInstall(
     if (!vencordPath) {
         renderer.error(makeError(ErrorCode.VENCORD_NOT_FOUND, "Could not find Vencord source path. Set vencord.path in config or VENPM_VENCORD_PATH env var."));
         renderer.finish(false);
-        process.exitCode = 1;
+        process.exitCode = exitCodeForError(ErrorCode.VENCORD_NOT_FOUND);
         return;
     }
 
@@ -83,7 +83,7 @@ export async function executeInstall(
             : `Plugin "${pluginName}" not found in any configured repo`;
         renderer.error(makeError(ErrorCode.PLUGIN_NOT_FOUND, msg, { candidates }));
         renderer.finish(false);
-        process.exitCode = 1;
+        process.exitCode = exitCodeForError(ErrorCode.PLUGIN_NOT_FOUND);
         return;
     }
 
@@ -121,7 +121,7 @@ export async function executeInstall(
         if (err instanceof ResolverError) {
             renderer.error(makeError(ErrorCode.CIRCULAR_DEPENDENCY, err.message));
             renderer.finish(false);
-            process.exitCode = 1;
+            process.exitCode = exitCodeForError(ErrorCode.CIRCULAR_DEPENDENCY);
             return;
         }
         throw err;
@@ -183,7 +183,7 @@ export async function executeInstall(
             ep.fail(`${entry.name}: ${err instanceof Error ? err.message : err}`);
             renderer.error(makeError(ErrorCode.BUILD_FAILED, `Failed to install ${entry.name}: ${err instanceof Error ? err.message : err}`));
             renderer.finish(false);
-            process.exitCode = 1;
+            process.exitCode = exitCodeForError(ErrorCode.BUILD_FAILED);
             return;
         }
     }

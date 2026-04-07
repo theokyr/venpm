@@ -6,7 +6,7 @@ import { loadLockfile, saveLockfile, isInstalled, removeInstalled } from "../cor
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 
@@ -23,7 +23,7 @@ export async function executeUninstall(ctx: IOContext, pluginName: string, optio
         const candidates = findCandidates(pluginName, installedNames);
         renderer.error(makeError(ErrorCode.PLUGIN_NOT_INSTALLED, `Plugin "${pluginName}" is not installed.`, { candidates }));
         renderer.finish(false);
-        process.exitCode = 1;
+        process.exitCode = exitCodeForError(ErrorCode.PLUGIN_NOT_INSTALLED);
         return;
     }
 

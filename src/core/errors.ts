@@ -40,6 +40,26 @@ const DEFAULT_SUGGESTIONS: Record<string, string> = {
     NON_INTERACTIVE: "Use --yes to auto-confirm, or set config explicitly",
 };
 
+export const ExitCode = {
+    SUCCESS: 0,
+    COMMAND_ERROR: 1,
+    USAGE_ERROR: 2,
+    ENV_ERROR: 3,
+} as const;
+
+export function exitCodeForError(code: ErrorCodeValue): number {
+    switch (code) {
+        case ErrorCode.VENCORD_NOT_FOUND:
+        case ErrorCode.GIT_NOT_AVAILABLE:
+        case ErrorCode.PNPM_NOT_AVAILABLE:
+        case ErrorCode.BUILD_FAILED:
+        case ErrorCode.DISCORD_NOT_FOUND:
+            return ExitCode.ENV_ERROR;
+        default:
+            return ExitCode.COMMAND_ERROR;
+    }
+}
+
 export function makeError(
     code: ErrorCodeValue,
     message: string,

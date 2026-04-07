@@ -5,7 +5,7 @@ import { loadLockfile, getInstalled } from "../core/lockfile.js";
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 
@@ -35,7 +35,7 @@ export async function executeInfo(ctx: IOContext, pluginName: string, options: G
         const candidates = findCandidates(pluginName, allPluginNames);
         renderer.error(makeError(ErrorCode.PLUGIN_NOT_FOUND, `Plugin "${pluginName}" not found in any index and is not installed`, { candidates }));
         renderer.finish(false);
-        process.exitCode = 1;
+        process.exitCode = exitCodeForError(ErrorCode.PLUGIN_NOT_FOUND);
         return;
     }
 

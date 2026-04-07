@@ -4,7 +4,7 @@ import { loadConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
 import { detectVencordPath, detectDiscordBinary } from "../core/detect.js";
 import { buildAndDeploy } from "../core/builder.js";
-import { ErrorCode, makeError } from "../core/errors.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 export function registerRebuildCommand(program: Command): void {
@@ -25,7 +25,7 @@ export function registerRebuildCommand(program: Command): void {
             if (!vencordPath) {
                 renderer.error(makeError(ErrorCode.VENCORD_NOT_FOUND, "Vencord path not found. Set vencord.path in config or $VENPM_VENCORD_PATH."));
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.VENCORD_NOT_FOUND);
                 return;
             }
 
@@ -76,7 +76,7 @@ export function registerRebuildCommand(program: Command): void {
                 p.fail("Build failed");
                 renderer.error(makeError(ErrorCode.BUILD_FAILED, `Build failed: ${(err as Error).message}`));
                 renderer.finish(false);
-                process.exitCode = 1;
+                process.exitCode = exitCodeForError(ErrorCode.BUILD_FAILED);
                 return;
             }
         });
