@@ -32,7 +32,13 @@ src/
     builder.ts                   # Vencord pnpm build, deploy dist, Discord restart
     cache.ts                     # HTTP index caching with ETag/Last-Modified
     prompt.ts                    # Interactive prompts (--yes auto-confirms, non-TTY errors)
-    log.ts                       # Structured output (--verbose/--quiet)
+    ansi.ts                      # ANSI 24-bit color (Carbon Forest Amber palette)
+    fuzzy.ts                     # Levenshtein distance for "did you mean" suggestions
+    errors.ts                    # ErrorInfo type, ErrorCode enum, makeError() factory
+    renderer.ts                  # Renderer interface + TtyRenderer, PlainRenderer
+    json-renderer.ts             # JsonRenderer for --json envelope v2
+    stream-renderer.ts           # StreamRenderer for --json-stream NDJSON
+    progress.ts                  # ProgressHandle for TTY spinners and plain output
   cli/                           # Command handlers (glue code, compose core modules)
     context.ts                   # createRealIOContext() — wires real Node.js I/O to IOContext
     install.ts                   # venpm install <plugin> [--version, --from, --local, --git, --tarball]
@@ -44,6 +50,9 @@ src/
     create.ts                    # venpm create <path> (scaffolds repo or plugin)
     rebuild.ts, doctor.ts        # Build and diagnostics
     validate.ts                  # venpm validate [--strict]
+    completions.ts               # venpm completions bash|zsh|fish
+    first-run.ts                 # First-run setup experience
+    help.ts                      # Custom branded help formatter
   index.ts                       # CLI entry point (commander, global flags)
 schemas/v1/                      # JSON Schemas — the primary deliverable
   plugins.schema.json            # Plugin index format
@@ -61,13 +70,19 @@ Every core module accepts its I/O dependencies as parameters — never imports `
 - `git` — git operations (clone with sparse checkout, pull, revParse, checkout)
 - `shell` — command execution (exec, spawn with detached support)
 - `prompter` — interactive prompts (confirm, input, select); has `nonInteractive` mode that throws actionable errors when stdin is not a TTY (CI, agentic shells) instead of auto-confirming
-- `logger` — structured output (info, warn, error, verbose, success)
+- `renderer` — output adapter (text, heading, success, warn, error, table, keyValue, progress); mode selected at context creation:
+  - TTY + color → TtyRenderer (amber/emerald/red ANSI)
+  - TTY no color / pipe / CI → PlainRenderer (no ANSI)
+  - `--json` → JsonRenderer (final envelope)
+  - `--json-stream` → StreamRenderer (NDJSON per event)
 
 `src/cli/context.ts` provides `createRealIOContext()` which wires real Node.js APIs. Tests inject mocks.
 
 ### Non-Interactive Mode
 
 When stdin is not a TTY, prompts throw errors with instructions to use `--yes` or set config explicitly. This is intentional — auto-confirming destructive operations in CI/agentic environments is not safe. The `--yes` flag must be passed explicitly.
+
+Both `--json` and `--json-stream` imply `--yes`. Exit codes: 0=success, 1=command error, 2=usage error, 3=environment error.
 
 ### Dependency Rules
 
@@ -101,8 +116,11 @@ The JSON Schema at `schemas/v1/plugins.schema.json` is the primary deliverable. 
 
 - Use `mockFs()` helpers (see existing tests) for filesystem mocking
 - Mock `HttpClient` with response objects matching the interface
+- Mock `Renderer` with vi.fn() for all 13 methods (text, heading, success, warn, error, verbose, dim, table, keyValue, list, progress, write, finish)
 - Integration tests should test `execute*()` functions directly, not through commander
+- Integration tests verify `renderer.finish()` call data
 - E2E tests use `execFile("node", [CLI_PATH, ...args])` with temp `XDG_CONFIG_HOME`
+- E2E tests verify exit codes, `--json` envelope v2, and `--json-stream` NDJSON
 
 ## Config & State
 
@@ -132,6 +150,24 @@ Files: `config.json`, `venpm-lock.json`, `index-cache.json`
 ## Design Spec
 
 Full spec: see the venpm-docs repository for design documentation.
+
+## Error Codes
+
+| Code | When | Default Suggestion |
+|------|------|-------------------|
+| `VENCORD_NOT_FOUND` | No Vencord path | `venpm config set vencord.path /path` |
+| `PLUGIN_NOT_FOUND` | Plugin not in any index | `venpm search <query>` + fuzzy candidates |
+| `PLUGIN_AMBIGUOUS` | Multiple repos, no `--from` | `--from <repo>` |
+| `PLUGIN_NOT_INSTALLED` | Uninstall/update non-installed | `venpm list` |
+| `REPO_FETCH_FAILED` | HTTP error | `venpm repo list` |
+| `GIT_NOT_AVAILABLE` | Git required but missing | `Install git, or --tarball` |
+| `PNPM_NOT_AVAILABLE` | Rebuild needs pnpm | `npm i -g pnpm` |
+| `CIRCULAR_DEPENDENCY` | Dep graph cycle | Shows cycle path |
+| `VERSION_NOT_FOUND` | Nonexistent version | `venpm info <plugin>` |
+| `SCHEMA_INVALID` | Validation failed | `venpm validate --strict` |
+| `BUILD_FAILED` | Build error | `venpm doctor` |
+| `DISCORD_NOT_FOUND` | Can't find Discord | `venpm config set discord.binary /path` |
+| `NON_INTERACTIVE` | No TTY for prompts | `--yes` or set config |
 
 ## Published Package
 
