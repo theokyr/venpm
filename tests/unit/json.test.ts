@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { jsonSuccess, jsonError, writeJson } from "../../src/core/json.js";
+import type { ErrorInfo } from "../../src/core/errors.js";
 
 describe("jsonSuccess", () => {
     it("wraps data in success envelope", () => {
@@ -11,12 +12,35 @@ describe("jsonSuccess", () => {
         const result = jsonSuccess(null);
         expect(result).toEqual({ success: true, data: null });
     });
+
+    it("includes warnings when provided", () => {
+        const result = jsonSuccess({ ok: true }, ["warning 1"]);
+        expect(result).toEqual({ success: true, data: { ok: true }, warnings: ["warning 1"] });
+    });
+
+    it("omits warnings when empty array provided", () => {
+        const result = jsonSuccess({ ok: true }, []);
+        expect(result.warnings).toBeUndefined();
+    });
 });
 
 describe("jsonError", () => {
-    it("wraps message in error envelope", () => {
-        const result = jsonError("not found");
-        expect(result).toEqual({ success: false, error: "not found" });
+    it("wraps ErrorInfo in error envelope", () => {
+        const err: ErrorInfo = { code: "PLUGIN_NOT_FOUND", message: "not found" };
+        const result = jsonError(err);
+        expect(result).toEqual({ success: false, error: err });
+    });
+
+    it("preserves all ErrorInfo fields", () => {
+        const err: ErrorInfo = {
+            code: "PLUGIN_NOT_FOUND",
+            message: "not found",
+            suggestion: "try this",
+            candidates: ["foo"],
+            docsUrl: "https://venpm.dev",
+        };
+        const result = jsonError(err);
+        expect(result.error).toEqual(err);
     });
 });
 
@@ -28,9 +52,10 @@ describe("writeJson", () => {
         expect(output.success).toBe(true);
     });
 
-    it("outputs valid JSON with no trailing content", () => {
+    it("outputs valid JSON with trailing newline", () => {
+        const err: ErrorInfo = { code: "TEST", message: "fail" };
         const write = vi.fn();
-        writeJson({ success: false, error: "fail" }, write);
+        writeJson({ success: false, error: err }, write);
         const raw = write.mock.calls[0][0];
         expect(() => JSON.parse(raw)).not.toThrow();
         expect(raw.endsWith("\n")).toBe(true);
