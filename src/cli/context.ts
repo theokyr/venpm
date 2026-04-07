@@ -7,7 +7,7 @@ import type { IOContext, FileSystem, HttpClient, GitClient, ShellRunner, GlobalO
 
 const execFileAsync = promisify(_execFile);
 
-export function createRealIOContext(options: GlobalOptions & { yes?: boolean; quiet?: boolean }): IOContext {
+export function createRealIOContext(options: GlobalOptions): IOContext {
     const fs: FileSystem = {
         async readFile(path: string, encoding: BufferEncoding): Promise<string> {
             return fsPromises.readFile(path, { encoding });
@@ -156,7 +156,11 @@ export function createRealIOContext(options: GlobalOptions & { yes?: boolean; qu
         },
     };
 
-    const prompter = createPrompter({ yes: options.yes || options.json || false });
+    const nonInteractive = !process.stdin.isTTY && !options.yes && !options.json;
+    const prompter = createPrompter({
+        yes: options.yes || options.json || false,
+        nonInteractive,
+    });
     const logger = createLogger({
         verbose: options.verbose ?? false,
         quiet: options.quiet ?? false,

@@ -271,16 +271,8 @@ export function registerCreateCommand(program: Command): void {
         .option("--css", "Add style.css")
         .option("--native", "Add native.ts")
         .action(async (targetPath: string, cmdOptions: { tsx?: boolean; css?: boolean; native?: boolean }) => {
-            const parentOpts = program.opts<{ config?: string; verbose?: boolean; json?: boolean; yes?: boolean }>();
-            const globalOptions: GlobalOptions = {
-                config: parentOpts.config,
-                verbose: parentOpts.verbose,
-                json: parentOpts.json,
-            };
-            const ctx = createRealIOContext({
-                ...globalOptions,
-                yes: parentOpts.yes,
-            });
+            const globalOptions = program.opts<GlobalOptions>();
+            const ctx = createRealIOContext(globalOptions);
             const createOptions: CreateOptions = { ...globalOptions, ...cmdOptions };
             try {
                 await executeCreate(ctx, targetPath, createOptions);

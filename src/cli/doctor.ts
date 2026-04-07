@@ -55,27 +55,28 @@ export function registerDoctorCommand(program: Command): void {
             const fail = "✗";
             const warn = "~";
 
-            console.log(`${gitOk ? ok : fail} git: ${gitOk ? "available" : "not found"}`);
-            console.log(`${pnpmOk ? ok : fail} pnpm: ${pnpmOk ? "available" : "not found"}`);
+            ctx.logger.info(`${gitOk ? ok : fail} git: ${gitOk ? "available" : "not found"}`);
+            ctx.logger.info(`${pnpmOk ? ok : fail} pnpm: ${pnpmOk ? "available" : "not found"}`);
 
             if (configuredVencordPath) {
                 const exists = await ctx.fs.exists(configuredVencordPath);
-                console.log(`${exists ? ok : fail} Vencord path (config): ${configuredVencordPath}${exists ? "" : " (not found)"}`);
+                ctx.logger.info(`${exists ? ok : fail} Vencord path (config): ${configuredVencordPath}${exists ? "" : " (not found)"}`);
             } else if (detectedVencordPath) {
-                console.log(`${warn} Vencord path (auto-detected): ${detectedVencordPath}`);
+                ctx.logger.info(`${warn} Vencord path (auto-detected): ${detectedVencordPath}`);
             } else {
-                console.log(`${fail} Vencord path: not found (set vencord.path in config or $VENPM_VENCORD_PATH)`);
+                ctx.logger.info(`${fail} Vencord path: not found (set vencord.path in config or $VENPM_VENCORD_PATH)`);
             }
 
             if (configuredBinary) {
                 const exists = await ctx.fs.exists(configuredBinary);
-                console.log(`${exists ? ok : fail} Discord binary (config): ${configuredBinary}${exists ? "" : " (not found)"}`);
+                ctx.logger.info(`${exists ? ok : fail} Discord binary (config): ${configuredBinary}${exists ? "" : " (not found)"}`);
             } else if (detectedBinary) {
-                console.log(`${warn} Discord binary (auto-detected): ${detectedBinary}`);
+                ctx.logger.info(`${warn} Discord binary (auto-detected): ${detectedBinary}`);
             } else {
-                console.log(`${fail} Discord binary: not found (set discord.binary in config)`);
+                ctx.logger.info(`${fail} Discord binary: not found (set discord.binary in config)`);
             }
 
-            console.log(`${repoCount > 0 ? ok : warn} Repositories: ${repoCount} configured`);
+            ctx.logger.info(`${repoCount > 0 ? ok : warn} Repositories: ${repoCount} configured`);
+            ctx.logger.info(`${ok} venpm: ${venpmVersion}`);
         });
 }

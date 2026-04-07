@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { Command } from "commander";
-import type { IOContext, InstallOptions, RebuildMode } from "../core/types.js";
+import type { IOContext, GlobalOptions, InstallOptions, RebuildMode } from "../core/types.js";
 import { loadConfig } from "../core/config.js";
 import { loadLockfile, saveLockfile, addInstalled } from "../core/lockfile.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
@@ -264,8 +264,8 @@ export function registerInstallCommand(program: Command): void {
         .option("--no-build", "Skip Vencord rebuild")
         .option("--rebuild", "Force Vencord rebuild")
         .action(async (pluginName: string, opts: Record<string, unknown>) => {
-            const globalOpts = program.opts<{ config?: string; verbose?: boolean; yes?: boolean }>();
-            const ctx = createRealIOContext({ ...globalOpts });
+            const globalOpts = program.opts<GlobalOptions>();
+            const ctx = createRealIOContext(globalOpts);
             const options: InstallOptions = {
                 ...globalOpts,
                 version: opts["version"] as string | undefined,

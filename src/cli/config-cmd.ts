@@ -90,7 +90,7 @@ export function registerConfigCommand(program: Command): void {
                 writeJson(jsonSuccess({ key, value }));
                 return;
             }
-            console.log(JSON.stringify(value, null, 2));
+            ctx.logger.info(JSON.stringify(value, null, 2));
         });
 
     config
@@ -102,6 +102,7 @@ export function registerConfigCommand(program: Command): void {
                 writeJson(jsonSuccess({ path: getConfigDir() }));
                 return;
             }
-            console.log(getConfigDir());
+            const ctx = createRealIOContext(parentOpts);
+            ctx.logger.info(getConfigDir());
         });
 }

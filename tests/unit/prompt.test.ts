@@ -1,6 +1,24 @@
 import { describe, it, expect } from "vitest";
 import { createPrompter } from "../../src/core/prompt.js";
 
+describe("createPrompter (nonInteractive=true)", () => {
+    const prompter = createPrompter({ yes: false, nonInteractive: true });
+
+    it("throws on confirm with actionable message", async () => {
+        await expect(prompter.confirm("Remove plugin?")).rejects.toThrow(/non-interactive mode/i);
+        await expect(prompter.confirm("Remove plugin?")).rejects.toThrow(/--yes/);
+    });
+
+    it("throws on input with actionable message", async () => {
+        await expect(prompter.input("Name?")).rejects.toThrow(/non-interactive mode/i);
+    });
+
+    it("throws on select with actionable message", async () => {
+        const choices = [{ value: "a" as const, label: "A" }];
+        await expect(prompter.select("Pick:", choices)).rejects.toThrow(/non-interactive mode/i);
+    });
+});
+
 describe("createPrompter (yes=true)", () => {
     const prompter = createPrompter({ yes: true });
 

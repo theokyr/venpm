@@ -168,13 +168,8 @@ export function registerUpdateCommand(program: Command): void {
         .command("update [plugin]")
         .description("Update a plugin or all plugins")
         .action(async (plugin: string | undefined) => {
-            const parentOpts = program.opts<{ config?: string; verbose?: boolean; yes?: boolean; json?: boolean }>();
-            const globalOptions: GlobalOptions = {
-                config: parentOpts.config,
-                verbose: parentOpts.verbose,
-                json: parentOpts.json,
-            };
-            const ctx = createRealIOContext({ ...globalOptions, yes: parentOpts.yes });
+            const globalOptions = program.opts<GlobalOptions>();
+            const ctx = createRealIOContext(globalOptions);
             await executeUpdate(ctx, plugin, globalOptions);
         });
 }

@@ -1,6 +1,6 @@
 {
   "name": "@kamaras/venpm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Vencord Plugin Manager — CLI and index spec for distributing userplugins",
   "type": "module",
   "bin": {
