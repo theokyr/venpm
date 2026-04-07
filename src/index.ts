@@ -13,6 +13,11 @@ import { registerCreateCommand } from "./cli/create.js";
 import { registerRebuildCommand } from "./cli/rebuild.js";
 import { registerDoctorCommand } from "./cli/doctor.js";
 import { registerValidateCommand } from "./cli/validate.js";
+import { configureHelp } from "./cli/help.js";
+import { registerCompletionsCommand } from "./cli/completions.js";
+import { createRealIOContext } from "./cli/context.js";
+import type { GlobalOptions } from "./core/types.js";
+import { needsFirstRun, runFirstTimeSetup } from "./cli/first-run.js";
 
 const _require = createRequire(import.meta.url);
 const { version } = _require("../package.json") as { version: string };
@@ -30,6 +35,8 @@ program
     .option("--json-stream", "Output events as NDJSON")
     .option("--no-color", "Disable colored output");
 
+configureHelp(program);
+
 registerInstallCommand(program);
 registerUninstallCommand(program);
 registerUpdateCommand(program);
@@ -42,5 +49,15 @@ registerCreateCommand(program);
 registerRebuildCommand(program);
 registerDoctorCommand(program);
 registerValidateCommand(program);
+registerCompletionsCommand(program);
+
+program.hook("preAction", async (thisCommand) => {
+    const commandName = thisCommand.args[0] ?? "";
+    if (needsFirstRun(commandName)) {
+        const globalOpts = program.opts<GlobalOptions>();
+        const ctx = createRealIOContext(globalOpts);
+        await runFirstTimeSetup(ctx, version);
+    }
+});
 
 program.parse();
