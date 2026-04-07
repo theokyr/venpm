@@ -7,7 +7,7 @@ Vencord Plugin Manager — CLI and JSON index spec for distributing userplugins.
 ```bash
 node scripts/setup.mjs          # First-time dev setup (install, build, link globally)
 npm run dev                      # Watch mode (auto-rebuild, global venpm updates live)
-npm test                         # Run all 224 tests
+npm test                         # Run all tests (~240)
 npm run lint                     # Type check (tsc --noEmit)
 npm run build                    # One-shot compile
 npm run unsetup                  # Remove global link
@@ -85,7 +85,7 @@ The JSON Schema at `schemas/v1/plugins.schema.json` is the primary deliverable. 
 
 ## Testing
 
-224 tests across 3 layers:
+~240 tests across 3 layers:
 
 | Layer | Location | What |
 |-------|----------|------|
@@ -128,6 +128,14 @@ Files: `config.json`, `venpm-lock.json`, `index-cache.json`
 ## Design Spec
 
 Full spec: see the venpm-docs repository for design documentation.
+
+## Published Package
+
+- **npm:** `@kamaras/venpm` (scoped — unscoped "venpm" blocked by npm name-similarity check)
+- **npm org:** `@kamaras` (account: `@theokyr`)
+- **Current version:** 0.1.0
+- **Docs:** https://venpm.dev (venpm-docs repo, GitHub Pages)
+- **CI:** vitest + lint on push, npm publish on `v*` tag with manual approval gate
 
 ## Git
 
