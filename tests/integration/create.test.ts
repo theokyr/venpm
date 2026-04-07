@@ -64,12 +64,20 @@ function makeCtx(fs: FileSystem): IOContext {
             input: vi.fn(async (_, def) => def ?? ""),
             select: vi.fn(async (_, choices) => choices[0].value),
         },
-        logger: {
-            info: vi.fn(),
+        renderer: {
+            text: vi.fn(),
+            heading: vi.fn(),
+            success: vi.fn(),
             warn: vi.fn(),
             error: vi.fn(),
             verbose: vi.fn(),
-            success: vi.fn(),
+            dim: vi.fn(),
+            table: vi.fn(),
+            keyValue: vi.fn(),
+            list: vi.fn(),
+            progress: vi.fn(() => ({ update: vi.fn(), succeed: vi.fn(), fail: vi.fn() })),
+            write: vi.fn(),
+            finish: vi.fn(),
         },
     };
 }
@@ -259,7 +267,7 @@ describe("executeCreate (plugin mode)", () => {
         await executeCreate(ctx, "/home/user/myrepo/plugins/ExistingPlugin", options);
 
         // Should warn but not overwrite
-        expect(ctx.logger.warn).toHaveBeenCalled();
+        expect(ctx.renderer.warn).toHaveBeenCalled();
         // The original entry should be preserved
         const finalIndex = JSON.parse(fs.written["/home/user/myrepo/plugins.json"] ?? existingIndex);
         expect(finalIndex.plugins.ExistingPlugin.version).toBe("1.0.0");

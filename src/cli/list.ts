@@ -2,36 +2,40 @@ import type { Command } from "commander";
 import type { IOContext, GlobalOptions } from "../core/types.js";
 import { loadLockfile } from "../core/lockfile.js";
 import { getLockfilePath } from "../core/paths.js";
-import { jsonSuccess, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeList(ctx: IOContext, options: GlobalOptions = {}): Promise<void> {
+    const { renderer } = ctx;
     const lockfile = await loadLockfile(ctx.fs, getLockfilePath());
     const installed = Object.entries(lockfile.installed);
 
-    if (options.json) {
-        writeJson(jsonSuccess({
-            plugins: installed.map(([name, info]) => ({
-                name,
-                version: info.version,
-                repo: info.repo,
-                method: info.method,
-                pinned: info.pinned,
-            })),
-        }));
+    if (installed.length === 0) {
+        renderer.text("No plugins installed");
+        renderer.finish(true, { plugins: [] });
         return;
     }
 
-    if (installed.length === 0) {
-        ctx.logger.info("No plugins installed");
-        return;
-    }
-    ctx.logger.info(`Installed plugins (${installed.length}):\n`);
-    for (const [name, info] of installed) {
-        const pin = info.pinned ? " (pinned)" : "";
-        const method = info.method === "local" ? " [local]" : "";
-        ctx.logger.info(`  ${name}@${info.version}${pin}${method} — from ${info.repo}`);
-    }
+    renderer.heading(`Installed plugins (${installed.length})`);
+    renderer.table(
+        ["Name", "Version", "Repo", "Method", "Pinned"],
+        installed.map(([name, info]) => [
+            name,
+            info.version,
+            info.repo,
+            info.method,
+            info.pinned ? "yes" : "no",
+        ]),
+    );
+
+    renderer.finish(true, {
+        plugins: installed.map(([name, info]) => ({
+            name,
+            version: info.version,
+            repo: info.repo,
+            method: info.method,
+            pinned: info.pinned,
+        })),
+    });
 }
 
 export function registerListCommand(program: Command): void {

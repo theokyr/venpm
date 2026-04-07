@@ -5,10 +5,12 @@ import { loadLockfile, getInstalled } from "../core/lockfile.js";
 import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { fetchAllIndexes, resolvePlugin } from "../core/registry.js";
 import { loadCache, saveCache } from "../core/cache.js";
-import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
+import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
 
 export async function executeInfo(ctx: IOContext, pluginName: string, options: GlobalOptions = {}): Promise<void> {
+    const { renderer } = ctx;
     const configPath = options.config ?? getConfigPath();
     const [config, lockfile] = await Promise.all([
         loadConfig(ctx.fs, configPath),
@@ -21,7 +23,7 @@ export async function executeInfo(ctx: IOContext, pluginName: string, options: G
 
     for (const fi of indexes) {
         if (fi.error) {
-            ctx.logger.warn(`Failed to fetch index from "${fi.repoName}": ${fi.error}`);
+            renderer.warn(`Failed to fetch index from "${fi.repoName}": ${fi.error}`);
         }
     }
 
@@ -29,77 +31,66 @@ export async function executeInfo(ctx: IOContext, pluginName: string, options: G
     const installedInfo = getInstalled(lockfile, pluginName);
 
     if (!match && !installedInfo) {
-        if (options.json) {
-            writeJson(jsonError(`Plugin "${pluginName}" not found in any index and is not installed`));
-            return;
-        }
-        ctx.logger.error(`Plugin "${pluginName}" not found in any index and is not installed`);
+        const allPluginNames = indexes.flatMap(fi => Object.keys(fi.index?.plugins ?? {}));
+        const candidates = findCandidates(pluginName, allPluginNames);
+        renderer.error(makeError(ErrorCode.PLUGIN_NOT_FOUND, `Plugin "${pluginName}" not found in any index and is not installed`, { candidates }));
+        renderer.finish(false);
+        process.exitCode = exitCodeForError(ErrorCode.PLUGIN_NOT_FOUND);
         return;
     }
 
-    if (options.json) {
-        writeJson(jsonSuccess({
-            name: pluginName,
-            version: match?.entry.version ?? null,
-            description: match?.entry.description ?? null,
-            authors: match?.entry.authors ?? [],
-            repo: match?.repoName ?? null,
-            dependencies: match?.entry.dependencies ?? [],
-            optionalDependencies: match?.entry.optionalDependencies ?? [],
-            versions: match?.entry.versions ? Object.keys(match.entry.versions) : [],
-            installed: !!installedInfo,
-            installedVersion: installedInfo?.version ?? null,
-        }));
-        return;
-    }
-
-    ctx.logger.info(`Plugin: ${pluginName}\n`);
+    const pairs: [string, string][] = [];
+    pairs.push(["Plugin", pluginName]);
 
     if (match) {
         const { entry, repoName } = match;
-        ctx.logger.info(`  Repository:  ${repoName}`);
-        ctx.logger.info(`  Version:     ${entry.version}`);
-        if (entry.description) {
-            ctx.logger.info(`  Description: ${entry.description}`);
-        }
+        pairs.push(["Repository", repoName]);
+        pairs.push(["Version", entry.version]);
+        if (entry.description) pairs.push(["Description", entry.description]);
         if (entry.authors && entry.authors.length > 0) {
-            const authorList = entry.authors.map(a => a.name).join(", ");
-            ctx.logger.info(`  Authors:     ${authorList}`);
+            pairs.push(["Authors", entry.authors.map(a => a.name).join(", ")]);
         }
-        if (entry.license) {
-            ctx.logger.info(`  License:     ${entry.license}`);
-        }
+        if (entry.license) pairs.push(["License", entry.license]);
         if (entry.dependencies && entry.dependencies.length > 0) {
-            ctx.logger.info(`  Depends on:  ${entry.dependencies.join(", ")}`);
+            pairs.push(["Depends on", entry.dependencies.join(", ")]);
         }
-        if (entry.discord) {
-            ctx.logger.info(`  Discord:     ${entry.discord}`);
-        }
-        if (entry.vencord) {
-            ctx.logger.info(`  Vencord:     ${entry.vencord}`);
-        }
+        if (entry.discord) pairs.push(["Discord", entry.discord]);
+        if (entry.vencord) pairs.push(["Vencord", entry.vencord]);
         const sourceKeys = Object.keys(entry.source).filter(k => entry.source[k as keyof typeof entry.source]);
-        ctx.logger.info(`  Source:      ${sourceKeys.join(", ")}`);
+        pairs.push(["Source", sourceKeys.join(", ")]);
         if (entry.versions) {
-            const versionList = Object.keys(entry.versions).join(", ");
-            ctx.logger.info(`  Versions:    ${versionList}`);
+            pairs.push(["Versions", Object.keys(entry.versions).join(", ")]);
         }
     } else {
-        ctx.logger.warn(`  (Plugin not found in any currently reachable index)`);
+        pairs.push(["Index", "(not found in any currently reachable index)"]);
     }
 
     if (installedInfo) {
-        ctx.logger.info(`\n  Installed:`);
-        ctx.logger.info(`    Version:      ${installedInfo.version}`);
-        ctx.logger.info(`    Method:       ${installedInfo.method}`);
-        ctx.logger.info(`    Pinned:       ${installedInfo.pinned ? "yes" : "no"}`);
-        ctx.logger.info(`    Installed at: ${installedInfo.installed_at}`);
-        if (installedInfo.git_ref) {
-            ctx.logger.info(`    Git ref:      ${installedInfo.git_ref}`);
-        }
+        pairs.push(["Installed", "yes"]);
+        pairs.push(["Installed version", installedInfo.version]);
+        pairs.push(["Method", installedInfo.method]);
+        pairs.push(["Pinned", installedInfo.pinned ? "yes" : "no"]);
+        pairs.push(["Installed at", installedInfo.installed_at]);
+        if (installedInfo.git_ref) pairs.push(["Git ref", installedInfo.git_ref]);
     } else {
-        ctx.logger.info(`\n  Not installed.`);
+        pairs.push(["Installed", "no"]);
     }
+
+    renderer.keyValue(pairs);
+
+    const data = {
+        name: pluginName,
+        version: match?.entry.version ?? null,
+        description: match?.entry.description ?? null,
+        authors: match?.entry.authors ?? [],
+        repo: match?.repoName ?? null,
+        dependencies: match?.entry.dependencies ?? [],
+        optionalDependencies: match?.entry.optionalDependencies ?? [],
+        versions: match?.entry.versions ? Object.keys(match.entry.versions) : [],
+        installed: !!installedInfo,
+        installedVersion: installedInfo?.version ?? null,
+    };
+    renderer.finish(true, data);
 }
 
 export function registerInfoCommand(program: Command): void {

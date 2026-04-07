@@ -4,7 +4,7 @@ import { loadConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
 import { detectVencordPath, detectDiscordBinary } from "../core/detect.js";
 import { buildAndDeploy } from "../core/builder.js";
-import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 export function registerRebuildCommand(program: Command): void {
@@ -16,18 +16,16 @@ export function registerRebuildCommand(program: Command): void {
         .action(async (cmdOptions: { restart?: boolean; noRestart?: boolean }) => {
             const globalOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(globalOpts);
+            const { renderer } = ctx;
             const configPath = globalOpts.config ?? getConfigPath();
             const config = await loadConfig(ctx.fs, configPath);
 
             // Resolve Vencord path
             const vencordPath = config.vencord.path ?? await detectVencordPath(ctx.fs);
             if (!vencordPath) {
-                if (globalOpts.json) {
-                    writeJson(jsonError("Vencord path not found. Set vencord.path in config or $VENPM_VENCORD_PATH."));
-                    return;
-                }
-                ctx.logger.error("Vencord path not found. Set vencord.path in config or $VENPM_VENCORD_PATH.");
-                process.exitCode = 1;
+                renderer.error(makeError(ErrorCode.VENCORD_NOT_FOUND, "Vencord path not found. Set vencord.path in config or $VENPM_VENCORD_PATH."));
+                renderer.finish(false);
+                process.exitCode = exitCodeForError(ErrorCode.VENCORD_NOT_FOUND);
                 return;
             }
 
@@ -49,7 +47,7 @@ export function registerRebuildCommand(program: Command): void {
                 }
             }
 
-            ctx.logger.info(`Building Vencord at ${vencordPath}...`);
+            const p = renderer.progress("rebuild", `Building Vencord at ${vencordPath}...`);
 
             try {
                 const result = await buildAndDeploy(ctx.fs, ctx.shell, vencordPath, {
@@ -57,33 +55,28 @@ export function registerRebuildCommand(program: Command): void {
                     discordBinary: discordBinary ?? undefined,
                 });
 
-                if (globalOpts.json) {
-                    writeJson(jsonSuccess({
-                        built: true,
-                        deployed: result.deployed,
-                        restarted: result.restarted,
-                    }));
-                    return;
-                }
-
-                ctx.logger.success("Build complete");
+                p.succeed("Build complete");
 
                 if (result.deployed && result.deployPath) {
-                    ctx.logger.info(`Deployed to ${result.deployPath}`);
+                    renderer.text(`Deployed to ${result.deployPath}`);
                 } else if (!result.deployed) {
-                    ctx.logger.warn("Deploy target not found — skipped copy step");
+                    renderer.warn("Deploy target not found — skipped copy step");
                 }
 
                 if (result.restarted) {
-                    ctx.logger.info("Discord restarted");
+                    renderer.text("Discord restarted");
                 }
+
+                renderer.finish(true, {
+                    built: true,
+                    deployed: result.deployed,
+                    restarted: result.restarted,
+                });
             } catch (err) {
-                if (globalOpts.json) {
-                    writeJson(jsonError(`Build failed: ${(err as Error).message}`));
-                    return;
-                }
-                ctx.logger.error(`Build failed: ${(err as Error).message}`);
-                process.exitCode = 1;
+                p.fail("Build failed");
+                renderer.error(makeError(ErrorCode.BUILD_FAILED, `Build failed: ${(err as Error).message}`));
+                renderer.finish(false);
+                process.exitCode = exitCodeForError(ErrorCode.BUILD_FAILED);
                 return;
             }
         });

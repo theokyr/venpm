@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { join } from "node:path";
 import type { GlobalOptions, PluginIndex, PluginEntry } from "../core/types.js";
 import { validateIndex } from "../core/schema.js";
-import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 export function registerValidateCommand(program: Command): void {
@@ -13,18 +13,16 @@ export function registerValidateCommand(program: Command): void {
         .action(async (filePath: string | undefined, options: { strict?: boolean }) => {
             const globalOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(globalOpts);
+            const { renderer } = ctx;
             const targetPath = filePath ?? join(process.cwd(), "plugins.json");
 
             let raw: string;
             try {
                 raw = await ctx.fs.readFile(targetPath, "utf-8");
             } catch {
-                if (globalOpts.json) {
-                    writeJson(jsonError(`Cannot read file: ${targetPath}`));
-                    return;
-                }
-                ctx.logger.error(`Cannot read file: ${targetPath}`);
-                process.exitCode = 1;
+                renderer.error(makeError(ErrorCode.SCHEMA_INVALID, `Cannot read file: ${targetPath}`));
+                renderer.finish(false);
+                process.exitCode = exitCodeForError(ErrorCode.SCHEMA_INVALID);
                 return;
             }
 
@@ -32,12 +30,9 @@ export function registerValidateCommand(program: Command): void {
             try {
                 data = JSON.parse(raw);
             } catch (err) {
-                if (globalOpts.json) {
-                    writeJson(jsonError(`Invalid JSON: ${(err as Error).message}`));
-                    return;
-                }
-                ctx.logger.error(`Invalid JSON: ${(err as Error).message}`);
-                process.exitCode = 1;
+                renderer.error(makeError(ErrorCode.SCHEMA_INVALID, `Invalid JSON: ${(err as Error).message}`));
+                renderer.finish(false);
+                process.exitCode = exitCodeForError(ErrorCode.SCHEMA_INVALID);
                 return;
             }
 
@@ -89,20 +84,17 @@ export function registerValidateCommand(program: Command): void {
 
             const valid = result.valid && allErrors.length === 0;
 
-            if (globalOpts.json) {
-                writeJson(jsonSuccess({ path: targetPath, valid, errors: allErrors }));
-                return;
-            }
-
             if (!valid) {
-                ctx.logger.error(`Validation failed (${allErrors.length} error(s)):`);
+                renderer.error(makeError(ErrorCode.SCHEMA_INVALID, `Validation failed (${allErrors.length} error(s))`));
                 for (const e of allErrors) {
-                    ctx.logger.error(`  ${e}`);
+                    renderer.text(`  ${e}`);
                 }
-                process.exitCode = 1;
+                renderer.finish(false);
+                process.exitCode = exitCodeForError(ErrorCode.SCHEMA_INVALID);
                 return;
             }
 
-            ctx.logger.success(`${targetPath} is valid`);
+            renderer.success(`${targetPath} is valid`);
+            renderer.finish(true, { path: targetPath, valid: true, errors: [] });
         });
 }

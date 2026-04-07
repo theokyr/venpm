@@ -1,7 +1,7 @@
 import { join, dirname, basename } from "node:path";
 import type { Command } from "commander";
 import type { FileSystem, IOContext, GlobalOptions } from "../core/types.js";
-import { jsonSuccess, jsonError, writeJson } from "../core/json.js";
+import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -62,6 +62,7 @@ export async function detectCreateMode(
 const PLUGINS_JSON_SCHEMA = "https://venpm.dev/schemas/v1/plugins.json";
 
 async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<string[]> {
+    const { renderer } = ctx;
     const createdFiles: string[] = [];
     const name = basename(targetPath).replace(/[^a-zA-Z0-9_-]/g, "-");
 
@@ -82,7 +83,7 @@ async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<string[
         JSON.stringify(pluginsJson, null, 2) + "\n",
     );
     createdFiles.push("plugins.json");
-    ctx.logger.success(`Created plugins.json`);
+    renderer.success(`Created plugins.json`);
 
     // .github/workflows/publish.yml
     const publishYml = [
@@ -107,7 +108,7 @@ async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<string[
     ].join("\n");
     await ctx.fs.writeFile(join(targetPath, ".github", "workflows", "publish.yml"), publishYml);
     createdFiles.push(".github/workflows/publish.yml");
-    ctx.logger.success(`Created .github/workflows/publish.yml`);
+    renderer.success(`Created .github/workflows/publish.yml`);
 
     // README.md
     const readme = [
@@ -131,9 +132,9 @@ async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<string[
     ].join("\n");
     await ctx.fs.writeFile(join(targetPath, "README.md"), readme);
     createdFiles.push("README.md");
-    ctx.logger.success(`Created README.md`);
+    renderer.success(`Created README.md`);
 
-    ctx.logger.info(`Repo scaffold complete at ${targetPath}`);
+    renderer.text(`Repo scaffold complete at ${targetPath}`);
     return createdFiles;
 }
 
@@ -143,6 +144,7 @@ async function scaffoldPlugin(
     options: CreateOptions,
     ancestorPluginsJson: string,
 ): Promise<string[]> {
+    const { renderer } = ctx;
     const createdFiles: string[] = [];
     const pluginName = basename(targetPath);
     const ext = options.tsx ? "tsx" : "ts";
@@ -180,7 +182,7 @@ async function scaffoldPlugin(
 
     await ctx.fs.writeFile(join(targetPath, `index.${ext}`), indexContent);
     createdFiles.push(`index.${ext}`);
-    ctx.logger.success(`Created index.${ext}`);
+    renderer.success(`Created index.${ext}`);
 
     // Optional style.css
     if (options.css) {
@@ -189,7 +191,7 @@ async function scaffoldPlugin(
             `/* ${pluginName} styles */\n`,
         );
         createdFiles.push("style.css");
-        ctx.logger.success(`Created style.css`);
+        renderer.success(`Created style.css`);
     }
 
     // Optional native.ts
@@ -201,7 +203,7 @@ async function scaffoldPlugin(
         ].join("\n");
         await ctx.fs.writeFile(join(targetPath, "native.ts"), nativeContent);
         createdFiles.push("native.ts");
-        ctx.logger.success(`Created native.ts`);
+        renderer.success(`Created native.ts`);
     }
 
     // Update ancestor plugins.json
@@ -225,15 +227,15 @@ async function scaffoldPlugin(
                 ancestorPluginsJson,
                 JSON.stringify(index, null, 2) + "\n",
             );
-            ctx.logger.success(`Added "${pluginName}" entry to plugins.json`);
+            renderer.success(`Added "${pluginName}" entry to plugins.json`);
         } else {
-            ctx.logger.warn(`"${pluginName}" already exists in plugins.json — skipping entry update`);
+            renderer.warn(`"${pluginName}" already exists in plugins.json — skipping entry update`);
         }
     } catch (err) {
-        ctx.logger.warn(`Could not update plugins.json: ${err}`);
+        renderer.warn(`Could not update plugins.json: ${err}`);
     }
 
-    ctx.logger.info(`Plugin scaffold complete at ${targetPath}`);
+    renderer.text(`Plugin scaffold complete at ${targetPath}`);
     return createdFiles;
 }
 
@@ -244,6 +246,7 @@ export async function executeCreate(
     targetPath: string,
     options: CreateOptions,
 ): Promise<void> {
+    const { renderer } = ctx;
     const ancestor = await findAncestorIndex(ctx.fs, targetPath);
     let mode: "repo" | "plugin";
     let files: string[];
@@ -256,9 +259,7 @@ export async function executeCreate(
         files = await scaffoldPlugin(ctx, targetPath, options, ancestor.path);
     }
 
-    if (options.json) {
-        writeJson(jsonSuccess({ mode, path: targetPath, files }));
-    }
+    renderer.finish(true, { mode, path: targetPath, files });
 }
 
 // ─── CLI Registration ─────────────────────────────────────────────────────────
@@ -273,16 +274,14 @@ export function registerCreateCommand(program: Command): void {
         .action(async (targetPath: string, cmdOptions: { tsx?: boolean; css?: boolean; native?: boolean }) => {
             const globalOptions = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(globalOptions);
+            const { renderer } = ctx;
             const createOptions: CreateOptions = { ...globalOptions, ...cmdOptions };
             try {
                 await executeCreate(ctx, targetPath, createOptions);
             } catch (err) {
-                if (globalOptions.json) {
-                    writeJson(jsonError((err as Error).message));
-                } else {
-                    ctx.logger.error((err as Error).message);
-                }
-                process.exitCode = 1;
+                renderer.error(makeError(ErrorCode.BUILD_FAILED, (err as Error).message));
+                renderer.finish(false);
+                process.exitCode = exitCodeForError(ErrorCode.BUILD_FAILED);
             }
         });
 }

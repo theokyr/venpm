@@ -8,7 +8,6 @@ import {
     checkGitAvailable,
     checkPnpmAvailable,
 } from "../core/detect.js";
-import { jsonSuccess, writeJson } from "../core/json.js";
 import { createRealIOContext } from "./context.js";
 import { createRequire } from "node:module";
 
@@ -22,6 +21,7 @@ export function registerDoctorCommand(program: Command): void {
         .action(async () => {
             const globalOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(globalOpts);
+            const { renderer } = ctx;
             const configPath = globalOpts.config ?? getConfigPath();
             const config = await loadConfig(ctx.fs, configPath);
 
@@ -39,44 +39,56 @@ export function registerDoctorCommand(program: Command): void {
 
             const repoCount = config.repos.length;
 
-            if (globalOpts.json) {
-                writeJson(jsonSuccess({
-                    git: gitOk,
-                    pnpm: pnpmOk,
-                    vencordPath,
-                    discordBinary,
-                    repos: repoCount,
-                    venpmVersion,
-                }));
-                return;
-            }
-
-            const ok = "✓";
-            const fail = "✗";
+            const ok = "\u2713";
+            const fail = "\u2717";
             const warn = "~";
 
-            ctx.logger.info(`${gitOk ? ok : fail} git: ${gitOk ? "available" : "not found"}`);
-            ctx.logger.info(`${pnpmOk ? ok : fail} pnpm: ${pnpmOk ? "available" : "not found"}`);
-
+            // Determine Vencord path status
+            let vencordStatus: string;
+            let vencordSigil: string;
             if (configuredVencordPath) {
                 const exists = await ctx.fs.exists(configuredVencordPath);
-                ctx.logger.info(`${exists ? ok : fail} Vencord path (config): ${configuredVencordPath}${exists ? "" : " (not found)"}`);
+                vencordSigil = exists ? ok : fail;
+                vencordStatus = `${configuredVencordPath} (config)${exists ? "" : " [not found]"}`;
             } else if (detectedVencordPath) {
-                ctx.logger.info(`${warn} Vencord path (auto-detected): ${detectedVencordPath}`);
+                vencordSigil = warn;
+                vencordStatus = `${detectedVencordPath} (auto-detected)`;
             } else {
-                ctx.logger.info(`${fail} Vencord path: not found (set vencord.path in config or $VENPM_VENCORD_PATH)`);
+                vencordSigil = fail;
+                vencordStatus = "not found";
             }
 
+            // Determine Discord binary status
+            let discordStatus: string;
+            let discordSigil: string;
             if (configuredBinary) {
                 const exists = await ctx.fs.exists(configuredBinary);
-                ctx.logger.info(`${exists ? ok : fail} Discord binary (config): ${configuredBinary}${exists ? "" : " (not found)"}`);
+                discordSigil = exists ? ok : fail;
+                discordStatus = `${configuredBinary} (config)${exists ? "" : " [not found]"}`;
             } else if (detectedBinary) {
-                ctx.logger.info(`${warn} Discord binary (auto-detected): ${detectedBinary}`);
+                discordSigil = warn;
+                discordStatus = `${detectedBinary} (auto-detected)`;
             } else {
-                ctx.logger.info(`${fail} Discord binary: not found (set discord.binary in config)`);
+                discordSigil = fail;
+                discordStatus = "not found";
             }
 
-            ctx.logger.info(`${repoCount > 0 ? ok : warn} Repositories: ${repoCount} configured`);
-            ctx.logger.info(`${ok} venpm: ${venpmVersion}`);
+            renderer.keyValue([
+                [`${gitOk ? ok : fail} git`, gitOk ? "available" : "not found"],
+                [`${pnpmOk ? ok : fail} pnpm`, pnpmOk ? "available" : "not found"],
+                [`${vencordSigil} Vencord path`, vencordStatus],
+                [`${discordSigil} Discord binary`, discordStatus],
+                [`${repoCount > 0 ? ok : warn} Repositories`, `${repoCount} configured`],
+                [`${ok} venpm`, venpmVersion],
+            ]);
+
+            renderer.finish(true, {
+                git: gitOk,
+                pnpm: pnpmOk,
+                vencordPath,
+                discordBinary,
+                repos: repoCount,
+                venpmVersion,
+            });
         });
 }

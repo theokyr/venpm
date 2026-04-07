@@ -6,13 +6,12 @@ import type {
     GitClient,
     ShellRunner,
     Prompter,
-    Logger,
+    Renderer,
     LockfileData,
     Config,
     GlobalOptions,
     InstallOptions,
 } from "../../src/core/types.js";
-import type { JsonEnvelope } from "../../src/core/json.js";
 import { executeList } from "../../src/cli/list.js";
 import { executeSearch } from "../../src/cli/search.js";
 import { executeInfo } from "../../src/cli/info.js";
@@ -55,28 +54,9 @@ const MOCK_CONFIG: Config = {
     discord: { restart: "never", binary: null },
 };
 
-/** Capture JSON written to stdout by writeJson */
-function captureStdout(): { captured: string[]; restore: () => void } {
-    const captured: string[] = [];
-    const original = process.stdout.write;
-    process.stdout.write = vi.fn((chunk: string | Uint8Array) => {
-        captured.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString());
-        return true;
-    }) as any;
-    return {
-        captured,
-        restore: () => { process.stdout.write = original; },
-    };
-}
-
-function parseEnvelope(captured: string[]): JsonEnvelope {
-    expect(captured.length).toBeGreaterThan(0);
-    return JSON.parse(captured[0]);
-}
-
 function createMockContext(overrides?: {
     lockfile?: LockfileData;
-}): IOContext {
+}): IOContext & { renderer: Renderer & Record<string, ReturnType<typeof vi.fn>> } {
     const lockfileData: LockfileData = overrides?.lockfile ?? { installed: {} };
 
     const fs: FileSystem = {
@@ -137,40 +117,40 @@ function createMockContext(overrides?: {
         select: vi.fn().mockResolvedValue(""),
     } as any;
 
-    const logger: Logger = {
-        info: vi.fn(),
+    const renderer: Renderer & Record<string, ReturnType<typeof vi.fn>> = {
+        text: vi.fn(),
+        heading: vi.fn(),
+        success: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
         verbose: vi.fn(),
-        success: vi.fn(),
-    };
+        dim: vi.fn(),
+        table: vi.fn(),
+        keyValue: vi.fn(),
+        list: vi.fn(),
+        progress: vi.fn(() => ({ update: vi.fn(), succeed: vi.fn(), fail: vi.fn() })),
+        write: vi.fn(),
+        finish: vi.fn(),
+    } as any;
 
-    return { fs, http, git, shell, prompter, logger };
+    return { fs, http, git, shell, prompter, renderer } as any;
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("--json output", () => {
-    let ctx: IOContext;
-    let stdout: ReturnType<typeof captureStdout>;
+describe("command output via renderer.finish", () => {
+    let ctx: ReturnType<typeof createMockContext>;
 
     beforeEach(() => {
         ctx = createMockContext();
-        stdout = captureStdout();
     });
 
-    afterEach(() => {
-        stdout.restore();
-    });
-
-    it("list outputs valid JSON envelope with empty plugins", async () => {
+    it("list calls finish with empty plugins", async () => {
         await executeList(ctx, { json: true });
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(true);
-        expect(env.data).toEqual({ plugins: [] });
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(true, { plugins: [] });
     });
 
-    it("list outputs plugins when installed", async () => {
+    it("list calls finish with plugins when installed", async () => {
         ctx = createMockContext({
             lockfile: {
                 installed: {
@@ -185,43 +165,54 @@ describe("--json output", () => {
             },
         });
         await executeList(ctx, { json: true });
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(true);
-        expect((env.data as any).plugins).toHaveLength(1);
-        expect((env.data as any).plugins[0].name).toBe("testPlugin");
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(
+            true,
+            expect.objectContaining({
+                plugins: expect.arrayContaining([
+                    expect.objectContaining({ name: "testPlugin" }),
+                ]),
+            }),
+        );
     });
 
-    it("search outputs valid JSON with results", async () => {
+    it("search calls finish with results", async () => {
         await executeSearch(ctx, "test", { json: true });
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(true);
-        expect((env.data as any).results).toBeDefined();
-        expect(Array.isArray((env.data as any).results)).toBe(true);
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(
+            true,
+            expect.objectContaining({
+                results: expect.any(Array),
+            }),
+        );
     });
 
-    it("info outputs valid JSON for known plugin", async () => {
+    it("info calls finish for known plugin", async () => {
         await executeInfo(ctx, "testPlugin", { json: true });
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(true);
-        expect((env.data as any).name).toBe("testPlugin");
-        expect((env.data as any).version).toBe("1.0.0");
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(
+            true,
+            expect.objectContaining({
+                name: "testPlugin",
+                version: "1.0.0",
+            }),
+        );
     });
 
-    it("info outputs JSON error for unknown plugin", async () => {
+    it("info calls finish(false) for unknown plugin", async () => {
         await executeInfo(ctx, "nonExistentPlugin", { json: true });
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(false);
-        expect(env.error).toContain("not found");
+        expect(ctx.renderer.error).toHaveBeenCalledWith(
+            expect.objectContaining({ message: expect.stringContaining("not found") }),
+        );
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(false);
     });
 
-    it("uninstall outputs JSON error for not-installed plugin", async () => {
+    it("uninstall calls finish(false) for not-installed plugin", async () => {
         await executeUninstall(ctx, "nonExistentPlugin", { json: true });
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(false);
-        expect(env.error).toContain("not installed");
+        expect(ctx.renderer.error).toHaveBeenCalledWith(
+            expect.objectContaining({ message: expect.stringContaining("not installed") }),
+        );
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(false);
     });
 
-    it("uninstall outputs JSON success when plugin removed", async () => {
+    it("uninstall calls finish(true) when plugin removed", async () => {
         ctx = createMockContext({
             lockfile: {
                 installed: {
@@ -236,38 +227,41 @@ describe("--json output", () => {
             },
         });
         await executeUninstall(ctx, "testPlugin", { json: true });
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(true);
-        expect((env.data as any).removed).toBe("testPlugin");
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(true, { removed: "testPlugin" });
     });
 
-    it("install outputs JSON error for not-found plugin", async () => {
+    it("install calls finish(false) for not-found plugin", async () => {
         const options: InstallOptions = { json: true };
         await executeInstall(ctx, "nonExistentPlugin", options);
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(false);
-        expect(env.error).toContain("not found");
+        expect(ctx.renderer.error).toHaveBeenCalledWith(
+            expect.objectContaining({ message: expect.stringContaining("not found") }),
+        );
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(false);
     });
 
-    it("install outputs JSON success with installed array", async () => {
+    it("install calls finish(true) with installed array", async () => {
         const options: InstallOptions = { json: true, noBuild: true };
         await executeInstall(ctx, "testPlugin", options);
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(true);
-        expect((env.data as any).installed).toBeDefined();
-        expect(Array.isArray((env.data as any).installed)).toBe(true);
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(
+            true,
+            expect.objectContaining({
+                installed: expect.any(Array),
+            }),
+        );
     });
 
-    it("update outputs JSON with empty updated array when nothing installed", async () => {
+    it("update calls finish with empty arrays when nothing installed", async () => {
         await executeUpdate(ctx, undefined, { json: true });
-        expect(stdout.captured.length).toBe(1);
-        const output = JSON.parse(stdout.captured[0]);
-        expect(output.success).toBe(true);
-        expect(output.data.updated).toEqual([]);
-        expect(output.data.skipped).toEqual([]);
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(
+            true,
+            expect.objectContaining({
+                updated: [],
+                skipped: [],
+            }),
+        );
     });
 
-    it("update outputs JSON with updated/skipped for installed plugins", async () => {
+    it("update calls finish with updated/skipped for installed plugins", async () => {
         ctx = createMockContext({
             lockfile: {
                 installed: {
@@ -282,11 +276,11 @@ describe("--json output", () => {
             },
         });
         await executeUpdate(ctx, "testPlugin", { json: true });
-        const env = parseEnvelope(stdout.captured);
-        expect(env.success).toBe(true);
-        expect((env.data as any).updated).toBeDefined();
+        expect(ctx.renderer.finish).toHaveBeenCalledWith(
+            true,
+            expect.objectContaining({
+                updated: expect.any(Array),
+            }),
+        );
     });
 });
-
-// Need afterEach imported
-import { afterEach } from "vitest";

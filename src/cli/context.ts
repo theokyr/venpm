@@ -2,7 +2,10 @@ import { execFile as _execFile, spawn as _spawn } from "node:child_process";
 import { promisify } from "node:util";
 import * as fsPromises from "node:fs/promises";
 import { createPrompter } from "../core/prompt.js";
-import { createLogger } from "../core/log.js";
+import { shouldColorize } from "../core/ansi.js";
+import { createPlainRenderer, createTtyRenderer } from "../core/renderer.js";
+import { createJsonRenderer } from "../core/json-renderer.js";
+import { createStreamRenderer } from "../core/stream-renderer.js";
 import type { IOContext, FileSystem, HttpClient, GitClient, ShellRunner, GlobalOptions } from "../core/types.js";
 
 const execFileAsync = promisify(_execFile);
@@ -140,7 +143,7 @@ export function createRealIOContext(options: GlobalOptions): IOContext {
                     cwd: spawnOptions?.cwd,
                     detached: spawnOptions?.detached,
                     env: spawnOptions?.env ? { ...process.env, ...spawnOptions.env } : undefined,
-                    stdio: "inherit",
+                    stdio: "ignore",
                 });
                 if (spawnOptions?.detached) {
                     child.unref();
@@ -156,15 +159,27 @@ export function createRealIOContext(options: GlobalOptions): IOContext {
         },
     };
 
-    const nonInteractive = !process.stdin.isTTY && !options.yes && !options.json;
+    const isJson = options.json ?? false;
+    const jsonStream = options.jsonStream ?? false;
+
+    const nonInteractive = !process.stdin.isTTY && !options.yes && !isJson && !jsonStream;
     const prompter = createPrompter({
-        yes: options.yes || options.json || false,
+        yes: options.yes || isJson || jsonStream || false,
         nonInteractive,
     });
-    const logger = createLogger({
-        verbose: options.verbose ?? false,
-        quiet: options.quiet ?? false,
-    });
 
-    return { fs, http, git, shell, prompter, logger };
+    let renderer: IOContext["renderer"];
+    if (jsonStream) {
+        renderer = createStreamRenderer();
+    } else if (isJson) {
+        renderer = createJsonRenderer();
+    } else if (process.env["FORCE_COLOR"]) {
+        renderer = createTtyRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false });
+    } else if (!shouldColorize(process.stdout) || (options as Record<string, unknown>).color === false) {
+        renderer = createPlainRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false });
+    } else {
+        renderer = createTtyRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false });
+    }
+
+    return { fs, http, git, shell, prompter, renderer };
 }
