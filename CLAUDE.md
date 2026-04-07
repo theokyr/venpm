@@ -173,7 +173,7 @@ Full spec: see the venpm-docs repository for design documentation.
 
 - **npm:** `@kamaras/venpm` (scoped — unscoped "venpm" blocked by npm name-similarity check)
 - **npm org:** `@kamaras` (account: `@theokyr`)
-- **Current version:** 0.1.0
+- **Current version:** 0.2.0
 - **Docs:** https://venpm.dev (venpm-docs repo, GitHub Pages)
 - **CI:** vitest + lint on push, npm publish on `v*` tag with manual approval gate
 
