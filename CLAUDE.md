@@ -7,7 +7,7 @@ Vencord Plugin Manager — CLI and JSON index spec for distributing userplugins.
 ```bash
 node scripts/setup.mjs          # First-time dev setup (install, build, link globally)
 npm run dev                      # Watch mode (auto-rebuild, global venpm updates live)
-npm test                         # Run all tests (~240)
+npm test                         # Run all tests (~381)
 npm run lint                     # Type check (tsc --noEmit)
 npm run build                    # One-shot compile
 npm run unsetup                  # Remove global link
@@ -104,7 +104,7 @@ The JSON Schema at `schemas/v1/plugins.schema.json` is the primary deliverable. 
 
 ## Testing
 
-~240 tests across 3 layers:
+381 tests across 3 layers:
 
 | Layer | Location | What |
 |-------|----------|------|
