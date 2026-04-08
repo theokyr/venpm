@@ -121,7 +121,7 @@ venpm validate plugins.json --strict
 venpm ships a **GitHub Action** for automated index publishing:
 
 ```yaml
-- uses: theokyr/venpm/actions/publish-index@master
+- uses: theokyr/venpm/actions/publish-index@main
 ```
 
 See the [Author Guide](https://venpm.dev/author/your-first-plugin) for the full walkthrough.
@@ -166,14 +166,14 @@ node scripts/setup.mjs    # install, build, link globally
 
 ```bash
 npm run dev                # watch mode (live global updates)
-npm test                   # 240 tests
+npm test                   # 389 tests
 npm run lint               # type check (tsc --noEmit)
 npm run build              # one-shot compile
 ```
 
 ### Test Suite
 
-240 tests across three layers:
+389 tests across three layers:
 
 | Layer | What it tests |
 |-------|---------------|
