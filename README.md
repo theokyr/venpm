@@ -199,6 +199,16 @@ Files: `config.json`, `venpm-lock.json`, `index-cache.json`
 
 Full documentation at **[venpm.dev](https://venpm.dev)** — guides, author documentation, API reference, and TypeDoc-generated internals.
 
+## Disclaimer
+
+venpm is not affiliated with, endorsed by, or sponsored by Discord Inc. or the Vencord project. "Discord" is a trademark of Discord Inc., mentioned solely for descriptive purposes.
+
+Client modifications — including Vencord and any plugins installed through venpm — are against [Discord's Terms of Service](https://discord.com/terms). While no widespread bans for client mod usage are known, Discord may take action against accounts at any time. **You use client modifications entirely at your own risk.**
+
+venpm does not review or audit third-party plugins. You are responsible for evaluating the trustworthiness of any plugin repository and plugin you install. The authors are not responsible for any damage to your Discord account, computer, or data.
+
+This software is provided "as is", without warranty of any kind. See [LICENSE](LICENSE) for details.
+
 ## License
 
 [MIT](LICENSE)
