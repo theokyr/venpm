@@ -106,8 +106,7 @@ export async function executeInstall(
     else if (options.tarball) forceMethod = "tarball";
 
     const pluginIndexes = validIndexes
-        .map(fi => fi.index!)
-        .filter(idx => idx !== undefined);
+        .map(fi => fi.index!);
 
     let plan;
     try {
@@ -181,9 +180,9 @@ export async function executeInstall(
             ep.succeed(`${entry.name}@${entry.version}`);
         } catch (err) {
             ep.fail(`${entry.name}: ${err instanceof Error ? err.message : err}`);
-            renderer.error(makeError(ErrorCode.BUILD_FAILED, `Failed to install ${entry.name}: ${err instanceof Error ? err.message : err}`));
+            renderer.error(makeError(ErrorCode.REPO_FETCH_FAILED, `Failed to install ${entry.name}: ${err instanceof Error ? err.message : err}`));
             renderer.finish(false);
-            process.exitCode = exitCodeForError(ErrorCode.BUILD_FAILED);
+            process.exitCode = exitCodeForError(ErrorCode.REPO_FETCH_FAILED);
             return;
         }
     }
@@ -197,7 +196,7 @@ export async function executeInstall(
     // 10. Handle rebuild
     const effectiveRebuildMode = resolveRebuildMode(options, config.rebuild);
 
-    if (effectiveRebuildMode === "always" || options.rebuild) {
+    if (effectiveRebuildMode === "always") {
         if (!options.noBuild) {
             await runRebuild(ctx, vencordPath);
         }

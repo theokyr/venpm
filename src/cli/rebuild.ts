@@ -13,7 +13,7 @@ export function registerRebuildCommand(program: Command): void {
         .description("Rebuild Vencord after plugin changes")
         .option("--no-restart", "Skip Discord restart without prompting")
         .option("--restart", "Restart Discord without prompting")
-        .action(async (cmdOptions: { restart?: boolean; noRestart?: boolean }) => {
+        .action(async (cmdOptions: { restart?: boolean }) => {
             const globalOpts = program.opts<GlobalOptions>();
             const ctx = createRealIOContext(globalOpts);
             const { renderer } = ctx;
@@ -34,7 +34,7 @@ export function registerRebuildCommand(program: Command): void {
 
             // Determine restart behaviour — explicit flags override config
             let shouldRestart = false;
-            if (cmdOptions.noRestart) {
+            if (cmdOptions.restart === false) {
                 shouldRestart = false;
             } else if (cmdOptions.restart) {
                 shouldRestart = !!discordBinary;

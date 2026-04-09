@@ -71,13 +71,13 @@ export async function fetchIndex(
     }
 
     // Build updated cache entry from response headers
-    const etag = response.headers?.get("etag") ?? response.headers?.get("ETag") ?? undefined;
-    const lastModified = response.headers?.get("last-modified") ?? response.headers?.get("Last-Modified") ?? undefined;
+    const etag = response.headers?.get("etag") ?? undefined;
+    const lastModified = response.headers?.get("last-modified") ?? undefined;
 
     const updatedEntry: CacheEntry = {
         url,
-        etag: etag ?? undefined,
-        lastModified: lastModified ?? undefined,
+        etag,
+        lastModified,
         body: text,
         cachedAt: new Date().toISOString(),
     };

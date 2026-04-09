@@ -26,7 +26,13 @@ export async function loadConfig(fs: FileSystem, configPath: string): Promise<Co
     const exists = await fs.exists(configPath);
     if (!exists) return { ...DEFAULT_CONFIG };
     const raw = await fs.readFile(configPath, "utf-8");
-    const parsed = JSON.parse(raw) as Partial<Config>;
+    let parsed: Partial<Config>;
+    try {
+        parsed = JSON.parse(raw) as Partial<Config>;
+    } catch {
+        process.stderr.write(`Warning: Failed to parse config at ${configPath}, using defaults\n`);
+        return { ...DEFAULT_CONFIG };
+    }
     return mergeConfig(parsed);
 }
 

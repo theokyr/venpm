@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mocked } from "vitest";
 import type {
     IOContext,
     FileSystem,
@@ -76,18 +77,18 @@ function createMockContext(overrides?: {
     lockfile?: LockfileData;
     confirmResult?: boolean;
 }): IOContext & {
-    git: jest.Mocked<GitClient>;
-    http: jest.Mocked<HttpClient>;
-    fs: jest.Mocked<FileSystem>;
-    shell: jest.Mocked<ShellRunner>;
-    prompter: jest.Mocked<Prompter>;
-    renderer: jest.Mocked<Renderer>;
+    git: Mocked<GitClient>;
+    http: Mocked<HttpClient>;
+    fs: Mocked<FileSystem>;
+    shell: Mocked<ShellRunner>;
+    prompter: Mocked<Prompter>;
+    renderer: Mocked<Renderer>;
 } {
     const gitAvailable = overrides?.gitAvailable ?? true;
     const lockfileData: LockfileData = overrides?.lockfile ?? { installed: {} };
     const confirmResult = overrides?.confirmResult ?? true;
 
-    const fs: jest.Mocked<FileSystem> = {
+    const fs: Mocked<FileSystem> = {
         readFile: vi.fn().mockImplementation(async (path: string) => {
             // Return config JSON for config path, lockfile JSON for lockfile path
             if (path.includes("config.json")) {
@@ -118,7 +119,7 @@ function createMockContext(overrides?: {
         copyDir: vi.fn().mockResolvedValue(undefined),
     } as any;
 
-    const http: jest.Mocked<HttpClient> = {
+    const http: Mocked<HttpClient> = {
         fetch: vi.fn().mockImplementation(async (url: string) => {
             if (url.includes("plugins.json")) {
                 return {
@@ -148,7 +149,7 @@ function createMockContext(overrides?: {
         }),
     } as any;
 
-    const git: jest.Mocked<GitClient> = {
+    const git: Mocked<GitClient> = {
         available: vi.fn().mockResolvedValue(gitAvailable),
         clone: vi.fn().mockResolvedValue(undefined),
         pull: vi.fn().mockResolvedValue(undefined),
@@ -156,18 +157,18 @@ function createMockContext(overrides?: {
         checkout: vi.fn().mockResolvedValue(undefined),
     } as any;
 
-    const shell: jest.Mocked<ShellRunner> = {
+    const shell: Mocked<ShellRunner> = {
         exec: vi.fn().mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 }),
         spawn: vi.fn().mockResolvedValue(undefined),
     } as any;
 
-    const prompter: jest.Mocked<Prompter> = {
+    const prompter: Mocked<Prompter> = {
         confirm: vi.fn().mockResolvedValue(confirmResult),
         input: vi.fn().mockResolvedValue(""),
         select: vi.fn().mockResolvedValue(""),
     } as any;
 
-    const renderer: jest.Mocked<Renderer> = {
+    const renderer: Mocked<Renderer> = {
         text: vi.fn(),
         heading: vi.fn(),
         success: vi.fn(),

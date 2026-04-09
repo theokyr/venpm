@@ -186,10 +186,8 @@ export function generateInstallPlan(
         const alreadyInstalled = Object.prototype.hasOwnProperty.call(lockfile.installed, name);
         if (alreadyInstalled) continue;
 
-        const found = findPlugin(indexes, name, options.fromRepo);
-        // findPlugin without fromRepo will never return null here since buildDependencyGraph
-        // already validated all deps, but we fall back to searching all indexes.
-        const result = found ?? findPlugin(indexes, name)!;
+        // findPlugin will always succeed here: buildDependencyGraph already validated all deps
+        const result = findPlugin(indexes, name, options.fromRepo)!;
 
         const { repoName, entry } = result;
 

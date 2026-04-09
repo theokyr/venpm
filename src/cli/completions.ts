@@ -67,16 +67,20 @@ export function registerCompletionsCommand(program: Command): void {
             switch (target) {
                 case "bash":
                     ctx.renderer.write(BASH_COMPLETION + "\n");
+                    ctx.renderer.finish(true, { shell: target, script: BASH_COMPLETION });
                     break;
                 case "zsh":
                     ctx.renderer.write(ZSH_COMPLETION + "\n");
+                    ctx.renderer.finish(true, { shell: target, script: ZSH_COMPLETION });
                     break;
                 case "fish":
                     ctx.renderer.write(FISH_COMPLETION + "\n");
+                    ctx.renderer.finish(true, { shell: target, script: FISH_COMPLETION });
                     break;
                 default:
                     ctx.renderer.text(`Unknown shell: ${target}. Supported: bash, zsh, fish`);
                     ctx.renderer.text(`Usage: eval "$(venpm completions zsh)"`);
+                    ctx.renderer.finish(false);
                     process.exitCode = ExitCode.USAGE_ERROR;
             }
         });
