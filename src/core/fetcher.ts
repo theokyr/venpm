@@ -83,8 +83,11 @@ export async function fetchViaTarball(
     const tmpPath = join(tmpdir(), `venpm-tarball-${randomUUID()}.tar.gz`);
     await writeFileRaw(tmpPath, buffer);
     await fs.mkdir(dest, { recursive: true });
-    await extract({ file: tmpPath, cwd: dest, strip: 1 });
-    await unlink(tmpPath);
+    try {
+        await extract({ file: tmpPath, cwd: dest, strip: 1 });
+    } finally {
+        await unlink(tmpPath).catch(() => {});
+    }
 
     return { method: "tarball" };
 }

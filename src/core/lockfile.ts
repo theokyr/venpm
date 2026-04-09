@@ -5,9 +5,14 @@ export const EMPTY_LOCKFILE: LockfileData = { installed: {} };
 
 export async function loadLockfile(fs: FileSystem, path: string): Promise<LockfileData> {
     const exists = await fs.exists(path);
-    if (!exists) return { ...EMPTY_LOCKFILE, installed: {} };
+    if (!exists) return { installed: {} };
     const raw = await fs.readFile(path, "utf-8");
-    return JSON.parse(raw) as LockfileData;
+    try {
+        return JSON.parse(raw) as LockfileData;
+    } catch {
+        process.stderr.write(`Warning: Failed to parse lockfile at ${path}, starting fresh\n`);
+        return { installed: {} };
+    }
 }
 
 export async function saveLockfile(fs: FileSystem, path: string, data: LockfileData): Promise<void> {

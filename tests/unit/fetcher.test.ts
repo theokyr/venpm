@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mocked } from "vitest";
 import type { FileSystem, GitClient, HttpClient, InstallPlanEntry } from "../../src/core/types.js";
 import {
     fetchViaGit,
@@ -22,7 +23,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 // ─── Mock factories ───────────────────────────────────────────────────────────
 
-function makeMockFs(): jest.Mocked<FileSystem> & { _symlinks: Record<string, string>; _dirs: string[] } {
+function makeMockFs(): Mocked<FileSystem> & { _symlinks: Record<string, string>; _dirs: string[] } {
     const _symlinks: Record<string, string> = {};
     const _dirs: string[] = [];
     return {
@@ -42,7 +43,7 @@ function makeMockFs(): jest.Mocked<FileSystem> & { _symlinks: Record<string, str
     } as any;
 }
 
-function makeMockGit(revParseResult = "abc1234567890"): jest.Mocked<GitClient> {
+function makeMockGit(revParseResult = "abc1234567890"): Mocked<GitClient> {
     return {
         available: vi.fn().mockResolvedValue(true),
         clone: vi.fn().mockResolvedValue(undefined),
@@ -52,7 +53,7 @@ function makeMockGit(revParseResult = "abc1234567890"): jest.Mocked<GitClient> {
     } as any;
 }
 
-function makeMockHttp(ok = true, status = 200): jest.Mocked<HttpClient> {
+function makeMockHttp(ok = true, status = 200): Mocked<HttpClient> {
     return {
         fetch: vi.fn().mockResolvedValue({
             ok,

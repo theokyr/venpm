@@ -94,9 +94,9 @@ export function registerConfigCommand(program: Command): void {
             if (value === undefined) {
                 const allKeys = collectConfigKeys(cfg);
                 const candidates = findCandidates(key, allKeys);
-                renderer.error(makeError(ErrorCode.PLUGIN_NOT_FOUND, `Key "${key}" not found in config`, { candidates }));
+                renderer.error(makeError(ErrorCode.SCHEMA_INVALID, `Key "${key}" not found in config`, { candidates }));
                 renderer.finish(false);
-                process.exitCode = exitCodeForError(ErrorCode.PLUGIN_NOT_FOUND);
+                process.exitCode = exitCodeForError(ErrorCode.SCHEMA_INVALID);
                 return;
             }
             renderer.text(JSON.stringify(value, null, 2));

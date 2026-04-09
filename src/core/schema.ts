@@ -30,15 +30,27 @@ function loadSchema(filename: string): object {
     return JSON.parse(raw);
 }
 
+const validatorCache = new Map<string, ReturnType<ReturnType<typeof createValidator>["compile"]>>();
+
+function getValidator(schemaFile: string) {
+    let validator = validatorCache.get(schemaFile);
+    if (!validator) {
+        const ajv = createValidator();
+        const schema = loadSchema(schemaFile);
+        validator = ajv.compile(schema);
+        validatorCache.set(schemaFile, validator);
+    }
+    return validator;
+}
+
 function validate(data: unknown, schemaFile: string): ValidationResult {
     if (data === null || data === undefined) {
         return { valid: false, errors: ["Input is null or undefined"] };
     }
-    const ajv = createValidator();
-    const schema = loadSchema(schemaFile);
-    const valid = ajv.validate(schema, data);
+    const validator = getValidator(schemaFile);
+    const valid = validator(data);
     if (valid) return { valid: true, errors: [] };
-    const errors = (ajv.errors ?? []).map((e: { instancePath?: string; message?: string }) => {
+    const errors = (validator.errors ?? []).map((e: { instancePath?: string; message?: string }) => {
         const path = e.instancePath || "/";
         return `${path}: ${e.message}`;
     });

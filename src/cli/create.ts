@@ -155,6 +155,7 @@ async function scaffoldPlugin(
     const indexContent = options.tsx
         ? [
             `import definePlugin from "@utils/types";`,
+            `import { React } from "@webpack/common";`,
             ``,
             `export default definePlugin({`,
             `    name: "${pluginName}",`,

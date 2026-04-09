@@ -56,7 +56,8 @@ export async function runFirstTimeSetup(ctx: IOContext, version: string): Promis
         ctx.renderer.text("");
         ctx.renderer.text("Run venpm search to browse available plugins.");
         return true;
-    } catch {
+    } catch (err) {
+        process.stderr.write(`First-run setup failed: ${err}\n`);
         return false;
     }
 }
