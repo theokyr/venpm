@@ -15,6 +15,8 @@ import { registerDoctorCommand } from "./cli/doctor.js";
 import { registerValidateCommand } from "./cli/validate.js";
 import { configureHelp } from "./cli/help.js";
 import { registerCompletionsCommand } from "./cli/completions.js";
+import { registerKillDiscordCommand } from "./cli/kill-discord.js";
+import { registerInjectCommand, registerUninjectCommand } from "./cli/inject.js";
 import { createRealIOContext } from "./cli/context.js";
 import type { GlobalOptions } from "./core/types.js";
 import { needsFirstRun, runFirstTimeSetup } from "./cli/first-run.js";
@@ -50,6 +52,9 @@ registerRebuildCommand(program);
 registerDoctorCommand(program);
 registerValidateCommand(program);
 registerCompletionsCommand(program);
+registerKillDiscordCommand(program);
+registerInjectCommand(program);
+registerUninjectCommand(program);
 
 program.hook("preAction", async (thisCommand) => {
     const commandName = thisCommand.args[0] ?? "";

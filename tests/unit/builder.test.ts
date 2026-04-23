@@ -129,15 +129,17 @@ describe("deployDist", () => {
         expect(result.deployPath).toBe(deployPath);
     });
 
-    it("skips copy and returns deployed:false when deployed dir does not exist", async () => {
+    it("creates the deploy directory when missing, then copies", async () => {
         vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+        const deployPath = DEPLOY_PATHS.linux;
         const fs = makeFsStub(new Set()); // deploy dir missing
 
         const result = await deployDist(fs, "/home/user/Vencord");
 
-        expect(fs.copyDir).not.toHaveBeenCalled();
-        expect(result.deployed).toBe(false);
-        expect(result.deployPath).toBeUndefined();
+        expect(fs.mkdir).toHaveBeenCalledWith(deployPath, { recursive: true });
+        expect(fs.copyDir).toHaveBeenCalledWith("/home/user/Vencord/dist", deployPath);
+        expect(result.deployed).toBe(true);
+        expect(result.deployPath).toBe(deployPath);
     });
 
     it("uses the darwin deploy path on darwin platform", async () => {
@@ -172,47 +174,30 @@ describe("restartDiscord", () => {
 
     afterEach(() => {
         vi.useRealTimers();
+        vi.restoreAllMocks();
     });
 
-    it("kills and respawns discord", async () => {
+    it("kills Discord processes and respawns the binary", async () => {
+        vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+        // No running Discord processes — kill is a no-op, spawn still happens.
+        const fs = makeFsStub(new Set());
+        (fs.readdir as ReturnType<typeof vi.fn>).mockResolvedValue([]);
         const shell = makeShellStub({ execExitCode: 0 });
 
-        const promise = restartDiscord(shell, "/usr/bin/discord");
-        await vi.runAllTimersAsync();
-        await promise;
-
-        expect(shell.exec).toHaveBeenCalledWith("pkill", ["-xi", "discord"]);
-        expect(shell.spawn).toHaveBeenCalledWith("/usr/bin/discord", [], { detached: true });
-    });
-
-    it("still spawns discord when pkill reports no process (exit code 1)", async () => {
-        const shell = makeShellStub({
-            execResults: [{ stdout: "", stderr: "", exitCode: 1 }],
-        });
-
-        const promise = restartDiscord(shell, "/usr/bin/discord");
+        const promise = restartDiscord(fs, shell, "/usr/bin/discord");
         await vi.runAllTimersAsync();
         await promise;
 
         expect(shell.spawn).toHaveBeenCalledWith("/usr/bin/discord", [], { detached: true });
-    });
-
-    it("throws when pkill fails with an unexpected exit code", async () => {
-        const shell = makeShellStub({
-            execResults: [{ stdout: "", stderr: "permission denied", exitCode: 2 }],
-        });
-
-        // Attach rejection handler immediately so the promise is never unhandled,
-        // then run timers to allow the async work to complete.
-        const promise = expect(restartDiscord(shell, "/usr/bin/discord")).rejects.toThrow(/pkill failed/);
-        await vi.runAllTimersAsync();
-        await promise;
     });
 
     it("spawns with detached:true so Discord outlives the venpm process", async () => {
+        vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+        const fs = makeFsStub(new Set());
+        (fs.readdir as ReturnType<typeof vi.fn>).mockResolvedValue([]);
         const shell = makeShellStub({ execExitCode: 0 });
 
-        const promise = restartDiscord(shell, "/usr/bin/discord");
+        const promise = restartDiscord(fs, shell, "/usr/bin/discord");
         await vi.runAllTimersAsync();
         await promise;
 
@@ -248,6 +233,7 @@ describe("buildAndDeploy", () => {
         vi.spyOn(process, "platform", "get").mockReturnValue("linux");
         const deployPath = DEPLOY_PATHS.linux;
         const fs = makeFsStub(new Set([deployPath]));
+        (fs.readdir as ReturnType<typeof vi.fn>).mockResolvedValue([]);
         const shell = makeShellStub({ execExitCode: 0 });
 
         const promise = buildAndDeploy(fs, shell, "/home/user/Vencord", {
@@ -285,13 +271,14 @@ describe("buildAndDeploy", () => {
         expect(fs.copyDir).not.toHaveBeenCalled();
     });
 
-    it("returns deployed:false when deploy dir does not exist", async () => {
+    it("creates the deploy dir and returns deployed:true on first run", async () => {
         vi.spyOn(process, "platform", "get").mockReturnValue("linux");
-        const fs = makeFsStub(new Set()); // no deploy dir
+        const fs = makeFsStub(new Set()); // no deploy dir yet
         const shell = makeShellStub({ execExitCode: 0 });
 
         const result = await buildAndDeploy(fs, shell, "/home/user/Vencord");
 
-        expect(result.deployed).toBe(false);
+        expect(fs.mkdir).toHaveBeenCalled();
+        expect(result.deployed).toBe(true);
     });
 });

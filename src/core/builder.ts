@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import type { FileSystem, ShellRunner } from "./types.js";
+import { killDiscordProcesses } from "./discord.js";
 
 // ─── Deploy Paths ─────────────────────────────────────────────────────────────
 
@@ -37,15 +38,18 @@ export async function buildVencord(shell: ShellRunner, vencordPath: string): Pro
 
 /**
  * Copy `<vencordPath>/dist/` to the platform-specific deployed location.
- * Skips silently when the deployed directory does not exist on disk.
+ *
+ * Creates the deploy directory if it doesn't exist. Previous behaviour was to
+ * skip silently when the directory was missing, which required users to run
+ * Vencord's own installer first to bootstrap it. On macOS Apple Silicon that
+ * installer is x86-only and often fails, so we make `rebuild` self-sufficient.
  */
 export async function deployDist(fs: FileSystem, vencordPath: string): Promise<DeployResult> {
     const platform = process.platform as "linux" | "darwin" | "win32";
     const deployPath = DEPLOY_PATHS[platform] ?? DEPLOY_PATHS.linux;
 
-    const deployedDirExists = await fs.exists(deployPath);
-    if (!deployedDirExists) {
-        return { deployed: false, restarted: false };
+    if (!(await fs.exists(deployPath))) {
+        await fs.mkdir(deployPath, { recursive: true });
     }
 
     const srcDist = join(vencordPath, "dist");
@@ -57,36 +61,13 @@ export async function deployDist(fs: FileSystem, vencordPath: string): Promise<D
 // ─── Restart ──────────────────────────────────────────────────────────────────
 
 /**
- * Kill Discord via `pkill`, wait briefly, then spawn the binary detached.
- * If pkill reports the process is not running (exit code 1) the kill step is
- * skipped — Discord is still spawned so the caller can open it fresh.
+ * Kill all running Discord processes, wait for confirmed exit, then spawn
+ * the binary detached.  Uses `/proc/<pid>/exe`-based discovery so only
+ * verified Discord binaries are killed (no stray processes).  SIGTERM is
+ * tried first; survivors are escalated to SIGKILL.
  */
-export async function restartDiscord(shell: ShellRunner, discordBinary: string): Promise<void> {
-    const processName = basename(discordBinary);
-
-    if (process.platform === "win32") {
-        // taskkill /IM matches image name; /F forces termination.
-        // Exit code 128 = process not found (not an error for us).
-        const killResult = await shell.exec("taskkill", ["/IM", `${processName}.exe`, "/F"]);
-        if (killResult.exitCode !== 0 && killResult.exitCode !== 128) {
-            throw new Error(
-                `taskkill failed (exit ${killResult.exitCode}): ${killResult.stderr}`
-            );
-        }
-    } else {
-        // pkill returns 0 if at least one process was signalled, 1 if none found.
-        // -x = exact name match, -i = case-insensitive (binary is "discord", comm is "Discord").
-        const killResult = await shell.exec("pkill", ["-xi", processName]);
-        if (killResult.exitCode !== 0 && killResult.exitCode !== 1) {
-            throw new Error(
-                `pkill failed (exit ${killResult.exitCode}): ${killResult.stderr}`
-            );
-        }
-    }
-
-    // Give the process a moment to fully exit before relaunching.
-    await new Promise<void>(resolve => setTimeout(resolve, 500));
-
+export async function restartDiscord(fs: FileSystem, shell: ShellRunner, discordBinary: string): Promise<void> {
+    await killDiscordProcesses(fs, shell, discordBinary);
     await shell.spawn(discordBinary, [], { detached: true });
 }
 
@@ -111,7 +92,7 @@ export async function buildAndDeploy(
     const result = await deployDist(fs, vencordPath);
 
     if (options.restart && options.discordBinary) {
-        await restartDiscord(shell, options.discordBinary);
+        await restartDiscord(fs, shell, options.discordBinary);
         result.restarted = true;
     }
 

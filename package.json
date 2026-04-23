@@ -1,6 +1,6 @@
 {
   "name": "@kamaras/venpm",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Vencord Plugin Manager — CLI and index spec for distributing userplugins",
   "type": "module",
   "bin": {
@@ -33,8 +33,11 @@
   ],
   "author": "kamaras",
   "license": "MIT",
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
+    "@electron/asar": "^4.2.0",
     "ajv": "^8.17.0",
     "ajv-formats": "^3.0.1",
     "commander": "^13.0.0",

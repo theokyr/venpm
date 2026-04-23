@@ -128,6 +128,7 @@ export interface FileSystem {
     stat(path: string): Promise<{ isDirectory(): boolean; isFile(): boolean; size: number }>;
     lstat(path: string): Promise<{ isDirectory(): boolean; isFile(): boolean; isSymbolicLink(): boolean }>;
     copyDir(src: string, dest: string): Promise<void>;
+    rename(src: string, dest: string): Promise<void>;
 }
 
 export interface HttpResponseHeaders {

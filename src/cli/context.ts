@@ -60,6 +60,10 @@ export function createRealIOContext(options: GlobalOptions): IOContext {
         async copyDir(src: string, dest: string): Promise<void> {
             await fsPromises.cp(src, dest, { recursive: true });
         },
+
+        async rename(src: string, dest: string): Promise<void> {
+            await fsPromises.rename(src, dest);
+        },
     };
 
     const http: HttpClient = {
