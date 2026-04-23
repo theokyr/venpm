@@ -38,15 +38,18 @@ export async function buildVencord(shell: ShellRunner, vencordPath: string): Pro
 
 /**
  * Copy `<vencordPath>/dist/` to the platform-specific deployed location.
- * Skips silently when the deployed directory does not exist on disk.
+ *
+ * Creates the deploy directory if it doesn't exist. Previous behaviour was to
+ * skip silently when the directory was missing, which required users to run
+ * Vencord's own installer first to bootstrap it. On macOS Apple Silicon that
+ * installer is x86-only and often fails, so we make `rebuild` self-sufficient.
  */
 export async function deployDist(fs: FileSystem, vencordPath: string): Promise<DeployResult> {
     const platform = process.platform as "linux" | "darwin" | "win32";
     const deployPath = DEPLOY_PATHS[platform] ?? DEPLOY_PATHS.linux;
 
-    const deployedDirExists = await fs.exists(deployPath);
-    if (!deployedDirExists) {
-        return { deployed: false, restarted: false };
+    if (!(await fs.exists(deployPath))) {
+        await fs.mkdir(deployPath, { recursive: true });
     }
 
     const srcDist = join(vencordPath, "dist");
