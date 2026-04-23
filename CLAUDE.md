@@ -122,6 +122,23 @@ The JSON Schema at `schemas/v1/plugins.schema.json` is the primary deliverable. 
 - E2E tests use `execFile("node", [CLI_PATH, ...args])` with temp `XDG_CONFIG_HOME`
 - E2E tests verify exit codes, `--json` envelope v2, and `--json-stream` NDJSON
 
+## Inject (v0.3.0+)
+
+`venpm inject` / `venpm uninject` natively patches the Discord app bundle so Vencord loads. Implementation in `src/core/inject.ts`. **macOS only at the moment** — Linux and Windows still use Vencord's bundled `pnpm inject`. Adding platform support means extending `inject.ts`'s platform switch + path logic; the asar-packing and CLI wiring are already platform-agnostic.
+
+**macOS shim layout:**
+```
+/Applications/Discord.app/Contents/Resources/
+    app.asar    # OUR shim, packed via @electron/asar (package.json + index.js)
+    _app.asar   # Discord's renamed original
+```
+
+**Invariants:**
+- Shim MUST be a packed asar. Vencord's patcher at `Vencord/src/main/patcher.ts:32` checks `require.main.path.endsWith("app.asar")` — a directory shim fails this check. Electron also prefers `app.asar` over sibling `app/` dirs, so directory-shims silently never load.
+- See agent memories `82-macos-app-management-protection.md` and `83-electron-asar-shim-precedence.md`.
+
+**macOS gotcha — App Management (Sequoia+):** modifying `/Applications/Discord.app/Contents/` requires terminal-specific App Management permission (System Settings → Privacy & Security → App Management → enable the running terminal). This is separate from SIP; root does NOT bypass it. Without the grant, inject surfaces the underlying `EPERM` from the rename. Callers (e.g. the theo-mac installer) should print a preflight notice on darwin ≥ 15.
+
 ## Config & State
 
 Single directory per platform:
