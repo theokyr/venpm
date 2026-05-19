@@ -45,7 +45,7 @@ const DEFAULT_SUGGESTIONS: Record<string, string> = {
     INJECT_FAILED: "Run: venpm inject --verbose to see details",
     ALREADY_INJECTED: "Run: venpm uninject to remove the existing patch",
     NOT_INJECTED: "Run: venpm inject to patch Discord",
-    PLATFORM_UNSUPPORTED: "Native inject is currently macOS-only; fall back to Vencord's pnpm inject on other platforms",
+    PLATFORM_UNSUPPORTED: "Native inject supports macOS and standard Linux Discord installs; fall back to Vencord's pnpm inject on other platforms",
 };
 
 export const ExitCode = {

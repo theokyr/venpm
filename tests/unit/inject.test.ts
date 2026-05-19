@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import { join } from "node:path";
+import { createPackage, extractFile, listPackage } from "@electron/asar";
 import {
     DISCORD_BRANCHES,
     detectDiscordApps,
@@ -77,6 +78,12 @@ const DARWIN_TARGET: InjectTarget = {
     platform: "darwin",
 };
 
+const LINUX_TARGET: InjectTarget = {
+    branch: "stable",
+    appPath: "/opt/discord",
+    platform: "linux",
+};
+
 // ─── Branch constant ─────────────────────────────────────────────────────────
 
 describe("DISCORD_BRANCHES", () => {
@@ -88,10 +95,19 @@ describe("DISCORD_BRANCHES", () => {
 // ─── detectDiscordApps ───────────────────────────────────────────────────────
 
 describe("detectDiscordApps", () => {
-    it("returns empty array on non-darwin platforms", async () => {
+    it("returns empty array on win32 platforms", async () => {
         const fs = makeFs(new Set([STABLE_APP, CANARY_APP]));
-        expect(await detectDiscordApps(fs, "linux")).toEqual([]);
         expect(await detectDiscordApps(fs, "win32")).toEqual([]);
+    });
+
+    it("returns Linux Discord installs from standard package paths", async () => {
+        const fs = makeFs(new Set(["/opt/discord", "/opt/discord-canary"]));
+        const apps = await detectDiscordApps(fs, "linux");
+
+        expect(apps).toEqual([
+            { branch: "stable", appPath: "/opt/discord", platform: "linux" },
+            { branch: "canary", appPath: "/opt/discord-canary", platform: "linux" },
+        ]);
     });
 
     it("returns only branches whose .app exists", async () => {
@@ -122,11 +138,11 @@ describe("getInjectStatus", () => {
         });
     });
 
-    it("reports injected when both asar and backup are present", async () => {
+    it("does not treat mere app.asar plus backup presence as injected", async () => {
         const p = stablePaths();
         const fs = makeFs(new Set([p.app, p.asar, p.backup]));
         const status = await getInjectStatus(fs, DARWIN_TARGET);
-        expect(status.injected).toBe(true);
+        expect(status.injected).toBe(false);
     });
 
     it("reports not-injected for bare backup without shim asar (orphan)", async () => {
@@ -145,9 +161,21 @@ describe("getInjectStatus", () => {
         expect(status.legacyShimDirPresent).toBe(true);
     });
 
-    it("throws PLATFORM_UNSUPPORTED on non-darwin", async () => {
+    it("reports not-injected for fresh Linux Discord install", async () => {
+        const fs = makeFs(new Set(["/opt/discord", "/opt/discord/resources/app.asar"]));
+        const status = await getInjectStatus(fs, LINUX_TARGET);
+
+        expect(status).toEqual({
+            injected: false,
+            asarPresent: true,
+            backupPresent: false,
+            legacyShimDirPresent: false,
+        });
+    });
+
+    it("throws PLATFORM_UNSUPPORTED on unsupported platforms", async () => {
         const fs = makeFs(new Set());
-        const target = { ...DARWIN_TARGET, platform: "linux" as NodeJS.Platform };
+        const target = { ...DARWIN_TARGET, platform: "win32" as NodeJS.Platform };
         await expect(getInjectStatus(fs, target)).rejects.toMatchObject({
             code: "PLATFORM_UNSUPPORTED",
         });
@@ -157,11 +185,11 @@ describe("getInjectStatus", () => {
 // ─── injectVencord (error paths + legacy handling) ───────────────────────────
 
 describe("injectVencord error paths", () => {
-    it("throws ALREADY_INJECTED when both asar and backup are present", async () => {
+    it("throws INJECT_FAILED when the shim cannot be packed", async () => {
         const p = stablePaths();
         const fs = makeFs(new Set([p.app, p.asar, p.backup]));
         await expect(injectVencord(fs, DARWIN_TARGET)).rejects.toMatchObject({
-            code: "ALREADY_INJECTED",
+            code: "INJECT_FAILED",
         });
     });
 
@@ -180,9 +208,9 @@ describe("injectVencord error paths", () => {
         });
     });
 
-    it("throws PLATFORM_UNSUPPORTED on non-darwin target", async () => {
+    it("throws PLATFORM_UNSUPPORTED on unsupported target", async () => {
         const fs = makeFs(new Set());
-        const target: InjectTarget = { ...DARWIN_TARGET, platform: "linux" };
+        const target: InjectTarget = { ...DARWIN_TARGET, platform: "win32" };
         await expect(injectVencord(fs, target)).rejects.toMatchObject({
             code: "PLATFORM_UNSUPPORTED",
         });
@@ -192,16 +220,12 @@ describe("injectVencord error paths", () => {
 // ─── uninjectVencord ─────────────────────────────────────────────────────────
 
 describe("uninjectVencord", () => {
-    it("removes shim asar and renames backup back to app.asar", async () => {
+    it("throws NOT_INJECTED for stock app.asar with a stale backup", async () => {
         const p = stablePaths();
         const fs = makeFs(new Set([p.app, p.asar, p.backup]));
-        await uninjectVencord(fs, DARWIN_TARGET);
-
-        const rms = (fs as unknown as { _rms: string[] })._rms;
-        expect(rms).toContain(p.asar);
-
-        const renames = (fs as unknown as { _renames: Array<[string, string]> })._renames;
-        expect(renames).toContainEqual([p.backup, p.asar]);
+        await expect(uninjectVencord(fs, DARWIN_TARGET)).rejects.toMatchObject({
+            code: "NOT_INJECTED",
+        });
     });
 
     it("removes a legacy app/ directory when only that is present", async () => {
@@ -231,9 +255,9 @@ describe("uninjectVencord", () => {
         });
     });
 
-    it("throws PLATFORM_UNSUPPORTED on non-darwin target", async () => {
+    it("throws PLATFORM_UNSUPPORTED on unsupported target", async () => {
         const fs = makeFs(new Set());
-        const target: InjectTarget = { ...DARWIN_TARGET, platform: "linux" };
+        const target: InjectTarget = { ...DARWIN_TARGET, platform: "win32" };
         await expect(uninjectVencord(fs, target)).rejects.toBeInstanceOf(InjectError);
     });
 });
@@ -246,9 +270,7 @@ describe("uninjectVencord", () => {
 //   - Header lists package.json + index.js
 //   - Uninject reverses it cleanly
 //
-// Only runs on darwin (where native inject is supported).
-
-const itDarwin = process.platform === "darwin" ? it : it.skip;
+// Uses real temp files so we can verify the generated asar contents.
 
 describe("injectVencord (integration)", () => {
     let tmpRoot: string;
@@ -290,7 +312,7 @@ describe("injectVencord (integration)", () => {
         };
     }
 
-    itDarwin("packs a real asar and round-trips through uninject", async () => {
+    it("packs a real asar and round-trips through uninject on macOS layout", async () => {
         const fs = realFs();
         const target: InjectTarget = {
             branch: "stable",
@@ -298,13 +320,16 @@ describe("injectVencord (integration)", () => {
             platform: "darwin",
         };
 
-        const { listPackage } = await import("@electron/asar");
-
         await injectVencord(fs, target);
+
+        await expect(injectVencord(fs, target)).rejects.toMatchObject({
+            code: "ALREADY_INJECTED",
+        });
 
         // After inject: original is at _app.asar, shim at app.asar
         expect(await fs.exists(join(fakeResources, "_app.asar"))).toBe(true);
         expect(await fs.exists(join(fakeResources, "app.asar"))).toBe(true);
+        expect((await getInjectStatus(fs, target)).injected).toBe(true);
 
         // The new asar must be a real asar containing our two shim files.
         const entries = listPackage(join(fakeResources, "app.asar"), {});
@@ -321,5 +346,55 @@ describe("injectVencord (integration)", () => {
         expect(await fs.exists(join(fakeResources, "_app.asar"))).toBe(false);
         const restored = await fsPromises.readFile(join(fakeResources, "app.asar"), "utf8");
         expect(restored).toBe("pretend-asar-bytes");
+    });
+
+    it("packs a Linux shim that points at the Linux Vencord dist path", async () => {
+        const fs = realFs();
+        fakeApp = join(tmpRoot, "discord");
+        fakeResources = join(fakeApp, "resources");
+        await fsPromises.mkdir(fakeResources, { recursive: true });
+        await fsPromises.writeFile(join(fakeResources, "app.asar"), "pretend-asar-bytes");
+
+        const target: InjectTarget = {
+            branch: "stable",
+            appPath: fakeApp,
+            platform: "linux",
+        };
+
+        await injectVencord(fs, target);
+
+        const indexJs = extractFile(join(fakeResources, "app.asar"), "index.js").toString();
+        expect(indexJs).toContain('".config", "Vencord", "dist", "patcher.js"');
+        expect(await fs.exists(join(fakeResources, "_app.asar"))).toBe(true);
+    });
+
+    it("does not treat a stock app.asar plus stale backup as injected", async () => {
+        const fs = realFs();
+        fakeApp = join(tmpRoot, "discord");
+        fakeResources = join(fakeApp, "resources");
+        await fsPromises.mkdir(fakeResources, { recursive: true });
+
+        const stockSrc = join(tmpRoot, "stock-src");
+        await fsPromises.mkdir(join(stockSrc, "app_bootstrap"), { recursive: true });
+        await fsPromises.writeFile(
+            join(stockSrc, "package.json"),
+            JSON.stringify({ name: "discord", main: "app_bootstrap/index.js" }),
+            "utf8",
+        );
+        await fsPromises.writeFile(join(stockSrc, "app_bootstrap", "index.js"), "", "utf8");
+        await createPackage(stockSrc, join(fakeResources, "app.asar"));
+        await createPackage(stockSrc, join(fakeResources, "_app.asar"));
+
+        const target: InjectTarget = {
+            branch: "stable",
+            appPath: fakeApp,
+            platform: "linux",
+        };
+
+        const status = await getInjectStatus(fs, target);
+
+        expect(status.injected).toBe(false);
+        expect(status.backupPresent).toBe(true);
+        expect(status.asarPresent).toBe(true);
     });
 });

@@ -17,6 +17,10 @@ interface InjectCmdOptions {
     branch?: string;
 }
 
+function supportsNativeInject(platform: NodeJS.Platform): boolean {
+    return platform === "darwin" || platform === "linux";
+}
+
 function mapInjectErrorCode(code: InjectError["code"]): ErrorCodeValue {
     switch (code) {
         case "PLATFORM_UNSUPPORTED": return ErrorCode.PLATFORM_UNSUPPORTED;
@@ -34,15 +38,17 @@ async function resolveTarget(
     const apps = await detectDiscordApps(fs);
 
     if (apps.length === 0) {
-        if (process.platform !== "darwin") {
+        if (!supportsNativeInject(process.platform)) {
             return {
                 error: ErrorCode.PLATFORM_UNSUPPORTED,
-                message: `Native inject is currently macOS-only (detected ${process.platform})`,
+                message: `Native inject is not supported on ${process.platform}`,
             };
         }
         return {
             error: ErrorCode.DISCORD_NOT_FOUND,
-            message: "No Discord.app found in /Applications",
+            message: process.platform === "darwin"
+                ? "No Discord.app found in /Applications"
+                : "No Discord install found in standard Linux paths",
         };
     }
 
@@ -64,7 +70,9 @@ async function resolveTarget(
     if (!match) {
         return {
             error: ErrorCode.DISCORD_NOT_FOUND,
-            message: `Discord ${requested} not found in /Applications`,
+            message: process.platform === "darwin"
+                ? `Discord ${requested} not found in /Applications`
+                : `Discord ${requested} not found in standard Linux paths`,
         };
     }
     return match;
@@ -73,7 +81,7 @@ async function resolveTarget(
 export function registerInjectCommand(program: Command): void {
     program
         .command("inject")
-        .description("Patch Discord.app to load Vencord (native, no external installer)")
+        .description("Patch Discord to load Vencord (native, no external installer)")
         .option("-b, --branch <branch>", "Discord branch: stable (default), canary, ptb")
         .action(async (cmdOptions: InjectCmdOptions) => {
             const globalOpts = program.opts<GlobalOptions>();
@@ -120,7 +128,7 @@ export function registerInjectCommand(program: Command): void {
 export function registerUninjectCommand(program: Command): void {
     program
         .command("uninject")
-        .description("Remove the Vencord patch from Discord.app")
+        .description("Remove the Vencord patch from Discord")
         .option("-b, --branch <branch>", "Discord branch: stable (default), canary, ptb")
         .action(async (cmdOptions: InjectCmdOptions) => {
             const globalOpts = program.opts<GlobalOptions>();
