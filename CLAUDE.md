@@ -124,11 +124,12 @@ The JSON Schema at `schemas/v1/plugins.schema.json` is the primary deliverable. 
 
 ## Inject (v0.3.0+)
 
-`venpm inject` / `venpm uninject` natively patches the Discord app bundle so Vencord loads. Implementation in `src/core/inject.ts`. **macOS only at the moment** — Linux and Windows still use Vencord's bundled `pnpm inject`. Adding platform support means extending `inject.ts`'s platform switch + path logic; the asar-packing and CLI wiring are already platform-agnostic.
+`venpm inject` / `venpm uninject` natively patches the Discord app bundle so Vencord loads. Implementation in `src/core/inject.ts`. macOS and standard Linux installs are supported; Windows still uses Vencord's bundled `pnpm inject`. Adding another platform means extending `inject.ts`'s platform switch + path logic; the asar-packing and CLI wiring are platform-agnostic.
 
-**macOS shim layout:**
+**Shim layout:**
 ```
-/Applications/Discord.app/Contents/Resources/
+/Applications/Discord.app/Contents/Resources/  # macOS
+/opt/discord/resources/                        # Linux
     app.asar    # OUR shim, packed via @electron/asar (package.json + index.js)
     _app.asar   # Discord's renamed original
 ```
