@@ -105,6 +105,19 @@ export async function fetchViaLocal(
         throw new Error(`Local path not found: ${localPath}`);
     }
 
+    try {
+        const destStat = await fs.lstat(dest);
+        if (destStat.isSymbolicLink()) {
+            await fs.rm(dest, { force: true });
+        } else {
+            throw new Error(`Destination already exists and is not a symlink: ${dest}`);
+        }
+    } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+            throw err;
+        }
+    }
+
     await fs.symlink(localPath, dest);
 
     return { method: "local" };

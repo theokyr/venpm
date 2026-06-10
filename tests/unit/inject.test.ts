@@ -101,12 +101,33 @@ describe("detectDiscordApps", () => {
     });
 
     it("returns Linux Discord installs from standard package paths", async () => {
-        const fs = makeFs(new Set(["/opt/discord", "/opt/discord-canary"]));
+        const fs = makeFs(new Set([
+            "/opt/discord/resources/app.asar",
+            "/opt/discord-canary/resources/app.asar",
+        ]));
         const apps = await detectDiscordApps(fs, "linux");
 
         expect(apps).toEqual([
             { branch: "stable", appPath: "/opt/discord", platform: "linux" },
             { branch: "canary", appPath: "/opt/discord-canary", platform: "linux" },
+        ]);
+    });
+
+    it("returns Linux Discord installs from the per-user updater layout", async () => {
+        const stableDir = join(os.homedir(), ".config", "discord");
+        const oldApp = join(stableDir, "app-1.0.99");
+        const newApp = join(stableDir, "app-1.0.142");
+        const fs = makeFs(new Set([
+            stableDir,
+            join(oldApp, "resources", "app.asar"),
+            join(newApp, "resources", "app.asar"),
+        ]));
+        vi.mocked(fs.readdir).mockResolvedValue(["app-1.0.99", "app-1.0.142", "logs"]);
+
+        const apps = await detectDiscordApps(fs, "linux");
+
+        expect(apps).toEqual([
+            { branch: "stable", appPath: newApp, platform: "linux" },
         ]);
     });
 

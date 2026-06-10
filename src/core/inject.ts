@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { createPackage, extractFile } from "@electron/asar";
 import type { FileSystem } from "./types.js";
 
@@ -20,6 +20,12 @@ const LINUX_BRANCH_PATHS: Record<DiscordBranch, string[]> = {
     stable: ["/opt/discord", "/usr/lib/discord", "/usr/share/discord"],
     canary: ["/opt/discord-canary", "/usr/lib/discord-canary", "/usr/share/discord-canary"],
     ptb: ["/opt/discord-ptb", "/usr/lib/discord-ptb", "/usr/share/discord-ptb"],
+};
+
+const LINUX_USER_BRANCH_DIRS: Record<DiscordBranch, string[]> = {
+    stable: [join(homedir(), ".config", "discord")],
+    canary: [join(homedir(), ".config", "discordcanary")],
+    ptb: [join(homedir(), ".config", "discordptb")],
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -126,13 +132,49 @@ export async function detectDiscordApps(
 
     for (const branch of DISCORD_BRANCHES) {
         for (const appPath of LINUX_BRANCH_PATHS[branch]) {
-            if (await fs.exists(appPath)) {
+            if (await fs.exists(join(appPath, "resources", "app.asar"))) {
                 found.push({ branch, appPath, platform });
                 break;
             }
         }
+
+        if (!found.some(app => app.branch === branch)) {
+            const userAppPath = await detectLinuxUserAppPath(fs, branch);
+            if (userAppPath) {
+                found.push({ branch, appPath: userAppPath, platform });
+            }
+        }
     }
     return found;
+}
+
+async function detectLinuxUserAppPath(
+    fs: FileSystem,
+    branch: DiscordBranch,
+): Promise<string | null> {
+    for (const baseDir of LINUX_USER_BRANCH_DIRS[branch]) {
+        if (!(await fs.exists(baseDir))) continue;
+
+        let entries: string[];
+        try {
+            entries = await fs.readdir(baseDir);
+        } catch {
+            continue;
+        }
+
+        const appDirs = entries
+            .filter(entry => entry.startsWith("app-"))
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+        for (const entry of appDirs.reverse()) {
+            const appPath = join(baseDir, entry);
+            if (await fs.exists(join(appPath, "resources", "app.asar"))) {
+                return appPath;
+            }
+        }
+    }
+
+    return null;
 }
 
 function isVenpmShimAsar(asarPath: string): boolean {
