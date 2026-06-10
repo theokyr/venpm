@@ -12,6 +12,7 @@ import {
     InjectError,
     type InjectTarget,
 } from "../../src/core/inject.js";
+import { appManagementSuggestionForInjectError, shouldRestartAfterInject } from "../../src/cli/inject.js";
 import type { FileSystem } from "../../src/core/types.js";
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
@@ -60,11 +61,12 @@ function makeFs(existing: Set<string>): FileSystem {
 const STABLE_APP = "/Applications/Discord.app";
 const CANARY_APP = "/Applications/Discord Canary.app";
 const PTB_APP = "/Applications/Discord PTB.app";
+const TEST_STABLE_APP = "/test/Applications/Discord.app";
 
 function stablePaths() {
-    const r = `${STABLE_APP}/Contents/Resources`;
+    const r = `${TEST_STABLE_APP}/Contents/Resources`;
     return {
-        app: STABLE_APP,
+        app: TEST_STABLE_APP,
         resources: r,
         asar: `${r}/app.asar`,
         backup: `${r}/_app.asar`,
@@ -74,7 +76,7 @@ function stablePaths() {
 
 const DARWIN_TARGET: InjectTarget = {
     branch: "stable",
-    appPath: STABLE_APP,
+    appPath: TEST_STABLE_APP,
     platform: "darwin",
 };
 
@@ -141,6 +143,67 @@ describe("detectDiscordApps", () => {
     it("returns empty array when no Discord installed", async () => {
         const fs = makeFs(new Set());
         expect(await detectDiscordApps(fs, "darwin")).toEqual([]);
+    });
+});
+
+// ─── CLI restart policy ──────────────────────────────────────────────────────
+
+describe("shouldRestartAfterInject", () => {
+    it("restarts when --restart is passed and a Discord binary is available", async () => {
+        const confirm = vi.fn();
+        await expect(
+            shouldRestartAfterInject({ restart: true }, "never", "/Applications/Discord.app/Contents/MacOS/Discord", confirm),
+        ).resolves.toBe(true);
+        expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it("does not restart when --no-restart is passed", async () => {
+        const confirm = vi.fn();
+        await expect(
+            shouldRestartAfterInject({ restart: false }, "always", "/Applications/Discord.app/Contents/MacOS/Discord", confirm),
+        ).resolves.toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it("asks in ask mode and uses the answer", async () => {
+        const confirm = vi.fn(async () => true);
+        await expect(
+            shouldRestartAfterInject({}, "ask", "/Applications/Discord.app/Contents/MacOS/Discord", confirm),
+        ).resolves.toBe(true);
+        expect(confirm).toHaveBeenCalledWith("Restart Discord now?", true);
+    });
+
+    it("does not restart when no Discord binary is available", async () => {
+        const confirm = vi.fn();
+        await expect(
+            shouldRestartAfterInject({ restart: true }, "always", null, confirm),
+        ).resolves.toBe(false);
+        expect(confirm).not.toHaveBeenCalled();
+    });
+});
+
+describe("appManagementSuggestionForInjectError", () => {
+    const originalPlatform = process.platform;
+
+    afterEach(() => {
+        Object.defineProperty(process, "platform", { value: originalPlatform });
+    });
+
+    it("returns macOS App Management guidance for EPERM inside /Applications app resources", () => {
+        Object.defineProperty(process, "platform", { value: "darwin" });
+        const err = Object.assign(
+            new Error("EPERM: operation not permitted, rename '/Applications/Discord.app/Contents/Resources/app.asar' -> '/Applications/Discord.app/Contents/Resources/_app.asar'"),
+            { code: "EPERM" },
+        );
+
+        expect(appManagementSuggestionForInjectError(err)).toContain("App Management permission");
+    });
+
+    it("ignores unrelated EPERM failures", () => {
+        Object.defineProperty(process, "platform", { value: "darwin" });
+        const err = Object.assign(new Error("EPERM: operation not permitted, rename '/tmp/a' -> '/tmp/b'"), { code: "EPERM" });
+
+        expect(appManagementSuggestionForInjectError(err)).toBeUndefined();
     });
 });
 
