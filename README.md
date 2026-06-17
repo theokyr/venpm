@@ -27,10 +27,10 @@ Vencord's userplugin ecosystem is powerful but fragmented. Plugin authors host c
 
 ```
 venpm install minimalCallBar
-  Resolved minimalCallBar@0.1.0 from kamaras-plugins
+  Found minimalCallBar@0.2.2 from kamaras
   Optional: settingsHub, channelTabs (install with venpm install <name>)
   Fetching via git (sparse checkout)...
-  Installed minimalCallBar@0.1.0
+  Installed minimalCallBar@0.2.2
   Rebuilding Vencord... done
 ```
 
@@ -80,10 +80,14 @@ venpm rebuild
 | `venpm config set\|get\|path` | View or edit venpm configuration |
 | `venpm create <path>` | Scaffold a new plugin repo or plugin |
 | `venpm rebuild` | Rebuild Vencord after changes |
+| `venpm inject` | Patch Discord to load Vencord natively |
+| `venpm uninject` | Remove the native Vencord patch from Discord |
+| `venpm kill-discord` | Stop running Discord processes |
 | `venpm doctor` | Diagnose environment issues |
 | `venpm validate [path]` | Validate a `plugins.json` index file |
+| `venpm completions [shell]` | Output shell completions |
 
-**Global flags:** `--yes` (auto-confirm), `--verbose`, `--quiet`, `--json` (structured output)
+**Global flags:** `--yes` (auto-confirm), `--verbose`, `--quiet`, `--json` (structured output), `--json-stream` (NDJSON events), `--no-color`
 
 ## How It Works
 
@@ -146,10 +150,12 @@ src/
     registry.ts     Fetch + parse + cache plugin indexes
     fetcher.ts      Git clone (sparse checkout), tarball extract, local symlink
     builder.ts      Vencord pnpm build, deploy, Discord restart
-    ...             config, lockfile, schema, detect, cache, paths, prompt, log
+    inject.ts       Native Discord app.asar shim install/removal
+    discord.ts      Discord process discovery and termination
+    ...             config, lockfile, schema, detect, cache, paths, prompt, renderer
   cli/            Command handlers (compose core modules)
     context.ts      createRealIOContext() — wires real Node.js I/O
-    install.ts      uninstall.ts  update.ts  list.ts  search.ts  ...
+    install.ts      uninstall.ts  update.ts  inject.ts  kill-discord.ts  ...
   index.ts        CLI entry point (commander)
 schemas/v1/       JSON Schemas — the primary deliverable
 actions/          GitHub Action for plugin repo authors

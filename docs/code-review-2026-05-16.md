@@ -1,13 +1,13 @@
 # Code Review - venpm and vencord-plugins - 2026-05-16
 
-Scope: current working tree of `/home/theo/src/venpm` plus `/home/theo/src/vencord-plugins`. The `venpm` tree had existing uncommitted changes before this review (`package-lock.json`, `src/core/json.ts`, `src/core/log.ts`, and matching tests), so this review covers the working tree as-is.
+Scope: current working tree of `~/src/venpm` plus `~/src/vencord-plugins`. The `venpm` tree had existing uncommitted changes before this review (`package-lock.json`, `src/core/json.ts`, `src/core/log.ts`, and matching tests), so this review covers the working tree as-is.
 
 ## Verification
 
-- `cd /home/theo/src/venpm && npm run build`: passed.
-- `cd /home/theo/src/venpm && npm test`: failed: 8 e2e failures, all caused by empty stdout/stderr from child-process CLI invocations.
-- `cd /home/theo/src/vencord-plugins && npm test`: passed, 301 tests.
-- `cd /home/theo/src/vencord-plugins/proxy && npm run build`: passed.
+- `cd ~/src/venpm && npm run build`: passed.
+- `cd ~/src/venpm && npm test`: failed: 8 e2e failures, all caused by empty stdout/stderr from child-process CLI invocations.
+- `cd ~/src/vencord-plugins && npm test`: passed, 301 tests.
+- `cd ~/src/vencord-plugins/proxy && npm run build`: passed.
 
 ## Findings
 

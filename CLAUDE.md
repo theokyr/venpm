@@ -138,7 +138,7 @@ The JSON Schema at `schemas/v1/plugins.schema.json` is the primary deliverable. 
 - Shim MUST be a packed asar. Vencord's patcher at `Vencord/src/main/patcher.ts:32` checks `require.main.path.endsWith("app.asar")` — a directory shim fails this check. Electron also prefers `app.asar` over sibling `app/` dirs, so directory-shims silently never load.
 - See agent memories `82-macos-app-management-protection.md` and `83-electron-asar-shim-precedence.md`.
 
-**macOS gotcha — App Management (Sequoia+):** modifying `/Applications/Discord.app/Contents/` requires terminal-specific App Management permission (System Settings → Privacy & Security → App Management → enable the running terminal). This is separate from SIP; root does NOT bypass it. Without the grant, inject surfaces the underlying `EPERM` from the rename. Callers (e.g. the theo-mac installer) should print a preflight notice on darwin ≥ 15.
+**macOS gotcha — App Management (Sequoia+):** modifying `/Applications/Discord.app/Contents/` requires terminal-specific App Management permission (System Settings → Privacy & Security → App Management → enable the running terminal). This is separate from SIP; root does NOT bypass it. Without the grant, inject surfaces the underlying `EPERM` from the rename. Callers (e.g. the macOS installer) should print a preflight notice on darwin >= 15.
 
 ## Config & State
 
@@ -186,12 +186,16 @@ Full spec: see the venpm-docs repository for design documentation.
 | `BUILD_FAILED` | Build error | `venpm doctor` |
 | `DISCORD_NOT_FOUND` | Can't find Discord | `venpm config set discord.binary /path` |
 | `NON_INTERACTIVE` | No TTY for prompts | `--yes` or set config |
+| `INJECT_FAILED` | Native inject/uninject failed | `venpm inject --verbose` |
+| `ALREADY_INJECTED` | Target Discord app already patched | `venpm uninject` |
+| `NOT_INJECTED` | Target Discord app is not patched | `venpm inject` |
+| `PLATFORM_UNSUPPORTED` | Native inject unsupported on this OS/install | Use Vencord's `pnpm inject` fallback |
 
 ## Published Package
 
 - **npm:** `@kamaras/venpm` (scoped — unscoped "venpm" blocked by npm name-similarity check)
 - **npm org:** `@kamaras` (account: `@theokyr`)
-- **Current version:** 0.2.0
+- **Version source:** `package.json` (bump during release prep)
 - **Docs:** https://venpm.dev (venpm-docs repo, GitHub Pages)
 - **CI:** vitest + lint on push, npm publish on `v*` tag with manual approval gate
 
@@ -208,4 +212,4 @@ Full spec: see the venpm-docs repository for design documentation.
 - All I/O behind IOContext — no direct `fs`/`fetch`/`child_process` imports in core modules
 - Lockfile mutations are immutable (return new objects)
 - `process.exitCode = 1; return` for errors — never `process.exit(1)`
-- JSON output uses 2-space indent + trailing newline
+- JSON output uses compact JSON plus a trailing newline

@@ -1,11 +1,11 @@
 # Vencord Plugins Layout, DOM, and Unsafe-Behavior Review - 2026-05-16
 
-Scope: focused static review of `/home/theo/src/vencord-plugins`, with emphasis on layout safety, direct DOM injection, brittle Discord DOM/webpack coupling, lifecycle cleanup, and unsafe behaviors that can break Discord or user systems. This is not a full product review of `venpm` itself; see `docs/code-review-2026-05-16.md` for the broader repo review.
+Scope: focused static review of `~/src/vencord-plugins`, with emphasis on layout safety, direct DOM injection, brittle Discord DOM/webpack coupling, lifecycle cleanup, and unsafe behaviors that can break Discord or user systems. This is not a full product review of `venpm` itself; see `docs/code-review-2026-05-16.md` for the broader repo review.
 
 Verification:
 
-- `/home/theo/src/vencord-plugins`: `npm test` passed, 19 files / 301 tests.
-- `/home/theo/src/vencord-plugins/proxy`: `npm run build` passed.
+- `~/src/vencord-plugins`: `npm test` passed, 19 files / 301 tests.
+- `~/src/vencord-plugins/proxy`: `npm run build` passed.
 
 ## Findings
 

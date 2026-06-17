@@ -3079,7 +3079,7 @@ git commit -m "docs: update CLAUDE.md with Renderer architecture and error codes
 ## Task 21: Update venpm-docs (venpm.dev)
 
 **Files:**
-- Modify: `/home/theo/src/venpm-docs/` (separate repo)
+- Modify: `~/src/venpm-docs/` (separate repo)
 
 This task operates in the `venpm-docs` repository. The implementer should:
 

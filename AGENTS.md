@@ -9,7 +9,7 @@ Use the shared Discord MCP proxy from `vencord-plugins`:
 ```json
 {
   "command": "node",
-  "args": ["/Users/theo/src/vencord-plugins/proxy/dist/index.js"]
+  "args": ["/Users/user/src/vencord-plugins/proxy/dist/index.js"]
 }
 ```
 
