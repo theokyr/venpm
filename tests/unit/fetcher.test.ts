@@ -204,11 +204,41 @@ describe("fetchViaLocal", () => {
     it("creates a symlink from dest to local path", async () => {
         const fs = makeMockFs();
         fs.exists.mockResolvedValue(true);
+        fs.lstat.mockRejectedValue(Object.assign(new Error("not found"), { code: "ENOENT" }));
 
         const result = await fetchViaLocal(fs, "/home/user/dev/myPlugin", "/dest/myPlugin");
 
         expect(fs.symlink).toHaveBeenCalledWith("/home/user/dev/myPlugin", "/dest/myPlugin");
         expect(result.method).toBe("local");
+    });
+
+    it("replaces an existing symlink at the destination", async () => {
+        const fs = makeMockFs();
+        fs.exists.mockResolvedValue(true);
+        fs.lstat.mockResolvedValue({
+            isDirectory: () => false,
+            isFile: () => false,
+            isSymbolicLink: () => true,
+        });
+
+        await fetchViaLocal(fs, "/home/user/dev/myPlugin", "/dest/myPlugin");
+
+        expect(fs.rm).toHaveBeenCalledWith("/dest/myPlugin", { force: true });
+        expect(fs.symlink).toHaveBeenCalledWith("/home/user/dev/myPlugin", "/dest/myPlugin");
+    });
+
+    it("refuses to replace a non-symlink destination", async () => {
+        const fs = makeMockFs();
+        fs.exists.mockResolvedValue(true);
+        fs.lstat.mockResolvedValue({
+            isDirectory: () => true,
+            isFile: () => false,
+            isSymbolicLink: () => false,
+        });
+
+        await expect(
+            fetchViaLocal(fs, "/home/user/dev/myPlugin", "/dest/myPlugin"),
+        ).rejects.toThrow("Destination already exists and is not a symlink");
     });
 
     it("throws when local path does not exist", async () => {
@@ -259,6 +289,7 @@ describe("fetchPlugin", () => {
         const fs = makeMockFs();
         const http = makeMockHttp();
         fs.exists.mockResolvedValue(true);
+        fs.lstat.mockRejectedValue(Object.assign(new Error("not found"), { code: "ENOENT" }));
 
         const entry = makeEntry({
             method: "local",

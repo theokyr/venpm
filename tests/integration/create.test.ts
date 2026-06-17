@@ -155,7 +155,7 @@ describe("executeCreate (repo mode)", () => {
 
         // GitHub Action workflow written
         expect(fs.written).toHaveProperty("/tmp/my-new-repo/.github/workflows/publish.yml");
-        expect(fs.written["/tmp/my-new-repo/.github/workflows/publish.yml"]).toContain("venpm validate");
+        expect(fs.written["/tmp/my-new-repo/.github/workflows/publish.yml"]).toContain("npx @kamaras/venpm validate plugins.json");
 
         // README.md written
         expect(fs.written).toHaveProperty("/tmp/my-new-repo/README.md");

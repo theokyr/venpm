@@ -26,7 +26,7 @@ runs:
         if [ "${{ inputs.strict }}" = "true" ]; then
           STRICT_FLAG="--strict"
         fi
-        npx venpm validate "${{ inputs.index-path }}" $STRICT_FLAG
+        npx @kamaras/venpm validate "${{ inputs.index-path }}" $STRICT_FLAG
 
     - name: Create plugin tarballs
       shell: bash

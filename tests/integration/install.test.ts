@@ -115,7 +115,7 @@ function createMockContext(overrides?: {
         readlink: vi.fn().mockResolvedValue(""),
         readdir: vi.fn().mockResolvedValue([]),
         stat: vi.fn().mockResolvedValue({ isDirectory: () => true, isFile: () => false, size: 0 }),
-        lstat: vi.fn().mockResolvedValue({ isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false }),
+        lstat: vi.fn().mockRejectedValue(Object.assign(new Error("not found"), { code: "ENOENT" })),
         copyDir: vi.fn().mockResolvedValue(undefined),
     } as any;
 

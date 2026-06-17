@@ -4,3 +4,5 @@ dist/
 .env
 coverage/
 .worktrees/
+.DS_Store
+.mcp.json

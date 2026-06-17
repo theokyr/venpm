@@ -103,7 +103,7 @@ async function scaffoldRepo(ctx: IOContext, targetPath: string): Promise<string[
         "        with:",
         "          node-version: '20'",
         "      - name: Validate plugins.json",
-        "        run: npx venpm validate plugins.json",
+        "        run: npx @kamaras/venpm validate plugins.json",
         "",
     ].join("\n");
     await ctx.fs.writeFile(join(targetPath, ".github", "workflows", "publish.yml"), publishYml);
