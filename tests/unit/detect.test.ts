@@ -143,8 +143,34 @@ describe("checkPnpmAvailable", () => {
 });
 
 describe("detectDiscordBinary", () => {
+    const originalEnv = { ...process.env };
+
     afterEach(() => {
+        process.env = { ...originalEnv };
         vi.restoreAllMocks();
+    });
+
+    it("prefers the Linux updater host binary under XDG_CONFIG_HOME", async () => {
+        vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+        process.env.XDG_CONFIG_HOME = "/tmp/venpm-xdg";
+        const fs = makeFsStub(new Set([
+            "/tmp/venpm-xdg/discord/Discord",
+            "/usr/bin/discord",
+        ]));
+
+        const result = await detectDiscordBinary(fs);
+        expect(result).toBe("/tmp/venpm-xdg/discord/Discord");
+    });
+
+    it("detects Linux updater Canary and PTB host binaries", async () => {
+        vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+        process.env.XDG_CONFIG_HOME = "/tmp/venpm-xdg";
+        const fs = makeFsStub(new Set([
+            "/tmp/venpm-xdg/discordcanary/DiscordCanary",
+        ]));
+
+        const result = await detectDiscordBinary(fs);
+        expect(result).toBe("/tmp/venpm-xdg/discordcanary/DiscordCanary");
     });
 
     it("returns the first existing binary path (linux)", async () => {

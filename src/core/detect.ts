@@ -53,9 +53,14 @@ function discordBinaryCandidates(): string[] {
     const platform = process.platform;
 
     if (platform === "linux") {
+        const configHome = process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
         return [
+            join(configHome, "discord", "Discord"),
+            join(configHome, "discordcanary", "DiscordCanary"),
+            join(configHome, "discordptb", "DiscordPTB"),
             "/usr/bin/discord",
             "/usr/bin/discord-canary",
+            "/usr/bin/discord-ptb",
             "/usr/bin/vesktop",
         ];
     }

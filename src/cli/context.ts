@@ -7,6 +7,7 @@ import { createPlainRenderer, createTtyRenderer } from "../core/renderer.js";
 import { createJsonRenderer } from "../core/json-renderer.js";
 import { createStreamRenderer } from "../core/stream-renderer.js";
 import type { IOContext, FileSystem, HttpClient, GitClient, ShellRunner, GlobalOptions } from "../core/types.js";
+import { writeStdout } from "./output.js";
 
 const execFileAsync = promisify(_execFile);
 
@@ -143,21 +144,44 @@ export function createRealIOContext(options: GlobalOptions): IOContext {
 
         async spawn(cmd: string, args: string[], spawnOptions?: { cwd?: string; detached?: boolean; env?: Record<string, string> }): Promise<void> {
             return new Promise((resolve, reject) => {
-                const child = _spawn(cmd, args, {
-                    cwd: spawnOptions?.cwd,
-                    detached: spawnOptions?.detached,
-                    env: spawnOptions?.env ? { ...process.env, ...spawnOptions.env } : undefined,
-                    stdio: "ignore",
+                let child: ReturnType<typeof _spawn>;
+                try {
+                    child = _spawn(cmd, args, {
+                        cwd: spawnOptions?.cwd,
+                        detached: spawnOptions?.detached,
+                        env: spawnOptions?.env ? { ...process.env, ...spawnOptions.env } : undefined,
+                        stdio: "ignore",
+                    });
+                } catch (err) {
+                    reject(err);
+                    return;
+                }
+
+                let settled = false;
+                let detachedTimer: NodeJS.Timeout | undefined;
+                const cleanup = () => {
+                    if (detachedTimer) clearTimeout(detachedTimer);
+                    child.off("error", onError);
+                    child.off("close", onClose);
+                };
+                const settle = (fn: () => void) => {
+                    if (settled) return;
+                    settled = true;
+                    cleanup();
+                    fn();
+                };
+                const onError = (err: Error) => settle(() => reject(err));
+                const onClose = (code: number | null) => settle(() => {
+                    if (code === 0) resolve();
+                    else reject(new Error(`${cmd} exited with code ${code}`));
                 });
+
+                child.once("error", onError);
                 if (spawnOptions?.detached) {
                     child.unref();
-                    resolve();
+                    detachedTimer = setTimeout(() => settle(resolve), 50);
                 } else {
-                    child.on("close", (code) => {
-                        if (code === 0) resolve();
-                        else reject(new Error(`${cmd} exited with code ${code}`));
-                    });
-                    child.on("error", reject);
+                    child.once("close", onClose);
                 }
             });
         },
@@ -174,15 +198,15 @@ export function createRealIOContext(options: GlobalOptions): IOContext {
 
     let renderer: IOContext["renderer"];
     if (jsonStream) {
-        renderer = createStreamRenderer();
+        renderer = createStreamRenderer(writeStdout);
     } else if (isJson) {
-        renderer = createJsonRenderer();
+        renderer = createJsonRenderer(writeStdout);
     } else if (process.env["FORCE_COLOR"]) {
-        renderer = createTtyRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false });
+        renderer = createTtyRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false }, writeStdout);
     } else if (!shouldColorize(process.stdout) || (options as Record<string, unknown>).color === false) {
-        renderer = createPlainRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false });
+        renderer = createPlainRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false }, writeStdout);
     } else {
-        renderer = createTtyRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false });
+        renderer = createTtyRenderer({ verbose: options.verbose ?? false, quiet: options.quiet ?? false }, writeStdout);
     }
 
     return { fs, http, git, shell, prompter, renderer };

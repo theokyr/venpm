@@ -80,6 +80,13 @@ describe("isDiscordBinary", () => {
         expect(isDiscordBinary("/usr/share/discord/Discord")).toBe(true);
     });
 
+    it("matches Linux user updater Discord installs", () => {
+        expect(isDiscordBinary("/home/user/.config/discord/Discord")).toBe(true);
+        expect(isDiscordBinary("/home/user/.config/discord/app-999.888.777/Discord")).toBe(true);
+        expect(isDiscordBinary("/home/user/.config/discordcanary/app-999.888.777/DiscordCanary")).toBe(true);
+        expect(isDiscordBinary("/home/user/.config/discordptb/app-999.888.777/DiscordPTB")).toBe(true);
+    });
+
     it("matches /opt/Vesktop/vesktop", () => {
         expect(isDiscordBinary("/opt/Vesktop/vesktop")).toBe(true);
     });
@@ -165,6 +172,24 @@ describe("findDiscordProcesses", () => {
 
         expect(result).toHaveLength(3);
         expect(result.map(p => p.pid)).toEqual([10, 20, 30]);
+    });
+
+    it("finds Discord processes from Linux user updater installs", async () => {
+        vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+        const fs = makeFsStub({
+            readdirResult: ["42"],
+            readlinkMap: {
+                "/proc/42/exe": "/home/user/.config/discord/app-999.888.777/Discord",
+            },
+        });
+        const shell = makeShellStub();
+
+        const result = await findDiscordProcesses(fs, shell);
+
+        expect(result).toEqual([{
+            pid: 42,
+            exe: "/home/user/.config/discord/app-999.888.777/Discord",
+        }]);
     });
 
     it("ignores processes where readlink throws (EACCES, ENOENT)", async () => {

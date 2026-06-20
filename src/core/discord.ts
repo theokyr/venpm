@@ -25,6 +25,9 @@ const DISCORD_EXE_PATTERNS: RegExp[] = [
     /^\/opt\/[Dd]iscord[^/]*\/[Dd]iscord/,
     /^\/usr\/lib\/discord[^/]*\/[Dd]iscord/,
     /^\/usr\/share\/discord[^/]*\/[Dd]iscord/,
+    // Discord's Linux updater installs into the user's config directory and
+    // advances app-* version directories independently of venpm.
+    /^\/(?:home|var\/home)\/[^/]+\/\.config\/discord(?:canary|ptb)?\/(?:[Dd]iscord(?:Canary|PTB)?|app-[^/]+\/[Dd]iscord(?:Canary|PTB)?)$/,
     // Vesktop
     /^\/opt\/[Vv]esktop[^/]*\/[Vv]esktop/,
     /^\/usr\/lib\/vesktop[^/]*\/[Vv]esktop/,
@@ -43,12 +46,28 @@ const DISCORD_EXE_PATTERNS: RegExp[] = [
     /^\/Applications\/Vesktop\.app\/Contents\/MacOS\//,
 ];
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function matchesConfiguredUpdaterBinary(resolvedPath: string, configuredBinary: string): boolean {
+    const match = configuredBinary.match(/^(.*)\/(Discord(?:Canary|PTB)?)$/);
+    if (!match) return false;
+
+    const [, dir, binaryName] = match;
+    const appBinaryPattern = new RegExp(
+        `^${escapeRegExp(dir)}/app-[^/]+/${escapeRegExp(binaryName)}$`
+    );
+    return appBinaryPattern.test(resolvedPath);
+}
+
 /**
  * Check whether a resolved binary path belongs to a Discord installation.
  * Matches against known install locations + the user's configured binary.
  */
 export function isDiscordBinary(resolvedPath: string, configuredBinary?: string | null): boolean {
     if (configuredBinary && resolvedPath === configuredBinary) return true;
+    if (configuredBinary && matchesConfiguredUpdaterBinary(resolvedPath, configuredBinary)) return true;
     return DISCORD_EXE_PATTERNS.some(p => p.test(resolvedPath));
 }
 

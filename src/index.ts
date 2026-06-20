@@ -18,6 +18,7 @@ import { registerCompletionsCommand } from "./cli/completions.js";
 import { registerKillDiscordCommand } from "./cli/kill-discord.js";
 import { registerInjectCommand, registerUninjectCommand } from "./cli/inject.js";
 import { createRealIOContext } from "./cli/context.js";
+import { writeStderr, writeStdout } from "./cli/output.js";
 import type { GlobalOptions } from "./core/types.js";
 import { needsFirstRun, runFirstTimeSetup } from "./cli/first-run.js";
 
@@ -25,6 +26,10 @@ const _require = createRequire(import.meta.url);
 const { version } = _require("../package.json") as { version: string };
 
 const program = new Command();
+program.configureOutput({
+    writeOut: writeStdout,
+    writeErr: writeStderr,
+});
 
 program
     .name("venpm")

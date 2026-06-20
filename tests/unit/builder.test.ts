@@ -204,6 +204,25 @@ describe("restartDiscord", () => {
         const spawnCall = (shell.spawn as ReturnType<typeof vi.fn>).mock.calls[0];
         expect(spawnCall[2]).toMatchObject({ detached: true });
     });
+
+    it("does not respawn when existing Discord processes remain alive", async () => {
+        vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+        const fs = makeFsStub(new Set());
+        (fs.readdir as ReturnType<typeof vi.fn>).mockResolvedValue(["42"]);
+        (fs.readlink as ReturnType<typeof vi.fn>).mockImplementation(async (path: string) => {
+            if (path === "/proc/42/exe") return "/opt/discord/Discord";
+            throw new Error("ENOENT");
+        });
+        (fs.exists as ReturnType<typeof vi.fn>).mockImplementation(async (path: string) => path === "/proc/42");
+        const shell = makeShellStub({ execExitCode: 0 });
+
+        const promise = expect(
+            restartDiscord(fs, shell, "/usr/bin/discord")
+        ).rejects.toThrow(/still running/);
+        await vi.runAllTimersAsync();
+        await promise;
+        expect(shell.spawn).not.toHaveBeenCalled();
+    });
 });
 
 // ─── buildAndDeploy ───────────────────────────────────────────────────────────

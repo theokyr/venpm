@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { FileSystem, ShellRunner } from "./types.js";
-import { killDiscordProcesses } from "./discord.js";
+import { findDiscordProcesses, killDiscordProcesses } from "./discord.js";
 
 // ─── Deploy Paths ─────────────────────────────────────────────────────────────
 
@@ -68,6 +68,11 @@ export async function deployDist(fs: FileSystem, vencordPath: string): Promise<D
  */
 export async function restartDiscord(fs: FileSystem, shell: ShellRunner, discordBinary: string): Promise<void> {
     await killDiscordProcesses(fs, shell, discordBinary);
+    const survivors = await findDiscordProcesses(fs, shell, discordBinary);
+    if (survivors.length > 0) {
+        const pids = survivors.map(p => p.pid).join(", ");
+        throw new Error(`Discord is still running after termination attempt (PID ${pids})`);
+    }
     await shell.spawn(discordBinary, [], { detached: true });
 }
 
