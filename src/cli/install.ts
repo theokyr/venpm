@@ -13,6 +13,7 @@ import { getConfigPath, getLockfilePath } from "../core/paths.js";
 import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { findCandidates } from "../core/fuzzy.js";
 import { createRealIOContext } from "./context.js";
+import { createPnpmEnvForNonInteractiveYes } from "./pnpm-env.js";
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -198,12 +199,12 @@ export async function executeInstall(
 
     if (effectiveRebuildMode === "always") {
         if (!options.noBuild) {
-            await runRebuild(ctx, vencordPath);
+            await runRebuild(ctx, vencordPath, options);
         }
     } else if (effectiveRebuildMode === "ask" && !options.noBuild) {
         const doRebuild = await prompter.confirm("Rebuild Vencord now?", true);
         if (doRebuild) {
-            await runRebuild(ctx, vencordPath);
+            await runRebuild(ctx, vencordPath, options);
         }
     }
     // "never" or noBuild: skip rebuild silently
@@ -217,7 +218,7 @@ function resolveRebuildMode(options: InstallOptions, configMode: RebuildMode): R
     return configMode;
 }
 
-async function runRebuild(ctx: IOContext, vencordPath: string): Promise<void> {
+async function runRebuild(ctx: IOContext, vencordPath: string, options: GlobalOptions): Promise<void> {
     const { fs, shell, renderer } = ctx;
     const p = renderer.progress("rebuild", "Rebuilding Vencord...");
     const discordBinary = await detectDiscordBinary(fs);
@@ -225,6 +226,7 @@ async function runRebuild(ctx: IOContext, vencordPath: string): Promise<void> {
         const result = await buildAndDeploy(fs, shell, vencordPath, {
             restart: discordBinary !== null,
             discordBinary: discordBinary ?? undefined,
+            pnpmEnv: createPnpmEnvForNonInteractiveYes(options),
         });
         if (result.deployed) {
             p.succeed(`Deployed to ${result.deployPath}`);

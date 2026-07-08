@@ -80,6 +80,16 @@ describe("buildVencord", () => {
         expect(shell.exec).toHaveBeenCalledWith("pnpm", ["build"], { cwd: "/home/user/Vencord" });
     });
 
+    it("passes pnpm-specific env to the build subprocess", async () => {
+        const shell = makeShellStub({ execExitCode: 0 });
+        await buildVencord(shell, "/home/user/Vencord", { pnpmEnv: { CI: "true" } });
+
+        expect(shell.exec).toHaveBeenCalledWith("pnpm", ["build"], {
+            cwd: "/home/user/Vencord",
+            env: { CI: "true" },
+        });
+    });
+
     it("resolves without error when exit code is 0", async () => {
         const shell = makeShellStub({ execExitCode: 0 });
         await expect(buildVencord(shell, "/home/user/Vencord")).resolves.toBeUndefined();
@@ -245,6 +255,22 @@ describe("buildAndDeploy", () => {
         expect(fs.copyDir).toHaveBeenCalledOnce();
         expect(shell.spawn).not.toHaveBeenCalled();
         expect(result.deployed).toBe(true);
+    });
+
+    it("passes pnpm-specific env through orchestration", async () => {
+        vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+        const deployPath = DEPLOY_PATHS.linux;
+        const fs = makeFsStub(new Set([deployPath]));
+        const shell = makeShellStub({ execExitCode: 0 });
+
+        await buildAndDeploy(fs, shell, "/home/user/Vencord", {
+            pnpmEnv: { CI: "true" },
+        });
+
+        expect(shell.exec).toHaveBeenCalledWith("pnpm", ["build"], {
+            cwd: "/home/user/Vencord",
+            env: { CI: "true" },
+        });
     });
 
     it("restarts discord when restart:true and discordBinary is provided", async () => {

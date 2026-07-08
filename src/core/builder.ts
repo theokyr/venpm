@@ -21,12 +21,25 @@ export interface DeployResult {
 
 // ─── Build ────────────────────────────────────────────────────────────────────
 
+export interface BuildVencordOptions {
+    pnpmEnv?: Record<string, string>;
+}
+
 /**
  * Run `pnpm build` inside `vencordPath`.
  * Throws an error if the build exits with a non-zero code.
  */
-export async function buildVencord(shell: ShellRunner, vencordPath: string): Promise<void> {
-    const result = await shell.exec("pnpm", ["build"], { cwd: vencordPath });
+export async function buildVencord(
+    shell: ShellRunner,
+    vencordPath: string,
+    options: BuildVencordOptions = {}
+): Promise<void> {
+    const execOptions: { cwd: string; env?: Record<string, string> } = { cwd: vencordPath };
+    if (options.pnpmEnv) {
+        execOptions.env = options.pnpmEnv;
+    }
+
+    const result = await shell.exec("pnpm", ["build"], execOptions);
     if (result.exitCode !== 0) {
         throw new Error(
             `pnpm build failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`
@@ -81,6 +94,7 @@ export async function restartDiscord(fs: FileSystem, shell: ShellRunner, discord
 export interface BuildAndDeployOptions {
     restart?: boolean;
     discordBinary?: string;
+    pnpmEnv?: Record<string, string>;
 }
 
 /**
@@ -92,7 +106,7 @@ export async function buildAndDeploy(
     vencordPath: string,
     options: BuildAndDeployOptions = {}
 ): Promise<DeployResult> {
-    await buildVencord(shell, vencordPath);
+    await buildVencord(shell, vencordPath, { pnpmEnv: options.pnpmEnv });
 
     const result = await deployDist(fs, vencordPath);
 

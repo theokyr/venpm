@@ -6,6 +6,7 @@ import { detectVencordPath, detectDiscordBinary } from "../core/detect.js";
 import { buildAndDeploy } from "../core/builder.js";
 import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
+import { createPnpmEnvForNonInteractiveYes } from "./pnpm-env.js";
 
 export function registerRebuildCommand(program: Command): void {
     program
@@ -53,6 +54,7 @@ export function registerRebuildCommand(program: Command): void {
                 const result = await buildAndDeploy(ctx.fs, ctx.shell, vencordPath, {
                     restart: shouldRestart,
                     discordBinary: discordBinary ?? undefined,
+                    pnpmEnv: createPnpmEnvForNonInteractiveYes(globalOpts),
                 });
 
                 p.succeed("Build complete");
