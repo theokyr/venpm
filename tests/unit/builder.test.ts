@@ -175,6 +175,27 @@ describe("deployDist", () => {
     });
 });
 
+/**
+ * Discovery mock for the verified-restart path: no processes during the kill
+ * phase, a live Discord once the launch has happened.
+ */
+function mockProcessAppearsAfterLaunch(fs: FileSystem, shell: ShellRunner, pid = "42") {
+    let launched = false;
+    (shell.spawn as ReturnType<typeof vi.fn>).mockImplementation(async () => { launched = true; });
+    (fs.readdir as ReturnType<typeof vi.fn>).mockImplementation(async () => (launched ? [pid] : []));
+    (fs.readlink as ReturnType<typeof vi.fn>).mockImplementation(async (path: string) => {
+        if (path === `/proc/${pid}/exe`) return "/opt/discord/Discord";
+        throw new Error("ENOENT");
+    });
+}
+
+/** Restart options that keep unit tests off the real environment and fast. */
+const TEST_RESTART: { platform: "linux"; env: Record<string, string>; settleMs: number } = {
+    platform: "linux",
+    env: { DISPLAY: ":0" },
+    settleMs: 10,
+};
+
 // ─── restartDiscord ───────────────────────────────────────────────────────────
 
 describe("restartDiscord", () => {
@@ -194,11 +215,14 @@ describe("restartDiscord", () => {
         (fs.readdir as ReturnType<typeof vi.fn>).mockResolvedValue([]);
         const shell = makeShellStub({ execExitCode: 0 });
 
-        const promise = restartDiscord(fs, shell, "/usr/bin/discord");
-        await vi.runAllTimersAsync();
-        await promise;
+        mockProcessAppearsAfterLaunch(fs, shell);
 
-        expect(shell.spawn).toHaveBeenCalledWith("/usr/bin/discord", [], { detached: true });
+        const promise = restartDiscord(fs, shell, "/usr/bin/discord", TEST_RESTART);
+        await vi.runAllTimersAsync();
+        const result = await promise;
+
+        expect(shell.spawn).toHaveBeenCalledWith("/usr/bin/discord", [], expect.objectContaining({ detached: true }));
+        expect(result).toMatchObject({ verified: true, pids: [42] });
     });
 
     it("spawns with detached:true so Discord outlives the venpm process", async () => {
@@ -207,7 +231,9 @@ describe("restartDiscord", () => {
         (fs.readdir as ReturnType<typeof vi.fn>).mockResolvedValue([]);
         const shell = makeShellStub({ execExitCode: 0 });
 
-        const promise = restartDiscord(fs, shell, "/usr/bin/discord");
+        mockProcessAppearsAfterLaunch(fs, shell);
+
+        const promise = restartDiscord(fs, shell, "/usr/bin/discord", TEST_RESTART);
         await vi.runAllTimersAsync();
         await promise;
 
@@ -227,7 +253,7 @@ describe("restartDiscord", () => {
         const shell = makeShellStub({ execExitCode: 0 });
 
         const promise = expect(
-            restartDiscord(fs, shell, "/usr/bin/discord")
+            restartDiscord(fs, shell, "/usr/bin/discord", TEST_RESTART)
         ).rejects.toThrow(/still running/);
         await vi.runAllTimersAsync();
         await promise;
@@ -281,15 +307,20 @@ describe("buildAndDeploy", () => {
         (fs.readdir as ReturnType<typeof vi.fn>).mockResolvedValue([]);
         const shell = makeShellStub({ execExitCode: 0 });
 
+        mockProcessAppearsAfterLaunch(fs, shell);
+
         const promise = buildAndDeploy(fs, shell, "/home/user/Vencord", {
             restart: true,
             discordBinary: "/usr/bin/discord",
+            restartOptions: TEST_RESTART,
         });
         await vi.runAllTimersAsync();
         const result = await promise;
 
-        expect(shell.spawn).toHaveBeenCalledWith("/usr/bin/discord", [], { detached: true });
+        expect(shell.spawn).toHaveBeenCalledWith("/usr/bin/discord", [], expect.objectContaining({ detached: true }));
         expect(result.deployed).toBe(true);
+        expect(result.restarted).toBe(true);
+        expect(result.restartedPids).toEqual([42]);
     });
 
     it("does not restart when restart:true but discordBinary is not provided", async () => {

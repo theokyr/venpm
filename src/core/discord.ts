@@ -91,7 +91,37 @@ export async function findDiscordProcesses(
     if (process.platform === "darwin") {
         return findDiscordProcessesMacOS(shell, configuredBinary);
     }
+    if (process.platform === "win32") {
+        return findDiscordProcessesWin32(shell, configuredBinary);
+    }
     return [];
+}
+
+/**
+ * Windows has no /proc and no ps, so liveness comes from `tasklist` CSV output.
+ * Image names only — enough to answer "is Discord running?", which is what
+ * restart verification needs.
+ */
+export async function findDiscordProcessesWin32(
+    shell: ShellRunner,
+    configuredBinary?: string | null,
+): Promise<DiscordProcess[]> {
+    const imageNames = ["Discord.exe", "DiscordCanary.exe", "DiscordPTB.exe", "Vesktop.exe"];
+    const configuredName = configuredBinary?.split(/[/\\]/).pop();
+    if (configuredName && !imageNames.includes(configuredName)) imageNames.push(configuredName);
+
+    const processes: DiscordProcess[] = [];
+    for (const name of imageNames) {
+        const result = await shell.exec("tasklist", ["/FI", `IMAGENAME eq ${name}`, "/FO", "CSV", "/NH"]);
+        if (result.exitCode !== 0) continue;
+        for (const line of result.stdout.split("\n")) {
+            // "Discord.exe","1234","Console","1","123,456 K"
+            const fields = line.trim().match(/^"([^"]+)","(\d+)"/);
+            if (!fields) continue;
+            processes.push({ pid: parseInt(fields[2], 10), exe: fields[1] });
+        }
+    }
+    return processes;
 }
 
 async function findDiscordProcessesLinux(
@@ -250,11 +280,19 @@ async function killDiscordProcessesWin32(
         }
     }
 
+    const found = await findDiscordProcessesWin32(shell, configuredBinary);
+
     for (const name of imageNames) {
         // taskkill /F /IM — exit 128 means "no such process", which is fine.
         await shell.exec("taskkill", ["/F", "/IM", name]);
     }
 
-    // Can't reliably introspect PIDs on Windows via IOContext, so return minimal info.
-    return { found: [], killed: [], forced: [] };
+    // taskkill /F is already a hard kill, so everything it removed counts as forced.
+    const survivors = await findDiscordProcessesWin32(shell, configuredBinary);
+    const survivingPids = new Set(survivors.map(p => p.pid));
+    return {
+        found,
+        killed: [],
+        forced: found.map(p => p.pid).filter(pid => !survivingPids.has(pid)),
+    };
 }

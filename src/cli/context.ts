@@ -1,12 +1,14 @@
 import { execFile as _execFile, spawn as _spawn } from "node:child_process";
 import { promisify } from "node:util";
 import * as fsPromises from "node:fs/promises";
+import { closeSync, mkdirSync, openSync } from "node:fs";
+import { dirname } from "node:path";
 import { createPrompter } from "../core/prompt.js";
 import { shouldColorize } from "../core/ansi.js";
 import { createPlainRenderer, createTtyRenderer } from "../core/renderer.js";
 import { createJsonRenderer } from "../core/json-renderer.js";
 import { createStreamRenderer } from "../core/stream-renderer.js";
-import type { IOContext, FileSystem, HttpClient, GitClient, ShellRunner, GlobalOptions } from "../core/types.js";
+import type { IOContext, FileSystem, HttpClient, GitClient, ShellRunner, GlobalOptions, SpawnOptions } from "../core/types.js";
 import { writeStdout } from "./output.js";
 
 const execFileAsync = promisify(_execFile);
@@ -142,17 +144,39 @@ export function createRealIOContext(options: GlobalOptions): IOContext {
             }
         },
 
-        async spawn(cmd: string, args: string[], spawnOptions?: { cwd?: string; detached?: boolean; env?: Record<string, string> }): Promise<void> {
+        async spawn(cmd: string, args: string[], spawnOptions?: SpawnOptions): Promise<void> {
             return new Promise((resolve, reject) => {
                 let child: ReturnType<typeof _spawn>;
+
+                let childEnv: NodeJS.ProcessEnv | undefined;
+                if (spawnOptions?.env || spawnOptions?.unsetEnv?.length) {
+                    childEnv = { ...process.env, ...spawnOptions.env };
+                    for (const key of spawnOptions.unsetEnv ?? []) delete childEnv[key];
+                }
+
+                // A log file keeps a failed launch diagnosable; without one the child's
+                // stderr goes nowhere and "it just didn't start" is all the caller knows.
+                let stdio: "ignore" | ["ignore", number, number] = "ignore";
+                let logFd: number | undefined;
+                if (spawnOptions?.logFile) {
+                    try {
+                        mkdirSync(dirname(spawnOptions.logFile), { recursive: true });
+                        logFd = openSync(spawnOptions.logFile, "w");
+                        stdio = ["ignore", logFd, logFd];
+                    } catch {
+                        // Logging is best-effort — never block a launch on it.
+                    }
+                }
+
                 try {
                     child = _spawn(cmd, args, {
                         cwd: spawnOptions?.cwd,
                         detached: spawnOptions?.detached,
-                        env: spawnOptions?.env ? { ...process.env, ...spawnOptions.env } : undefined,
-                        stdio: "ignore",
+                        env: childEnv,
+                        stdio,
                     });
                 } catch (err) {
+                    if (logFd !== undefined) closeSync(logFd);
                     reject(err);
                     return;
                 }
@@ -161,6 +185,11 @@ export function createRealIOContext(options: GlobalOptions): IOContext {
                 let detachedTimer: NodeJS.Timeout | undefined;
                 const cleanup = () => {
                     if (detachedTimer) clearTimeout(detachedTimer);
+                    // The child holds its own duplicate of the fd; ours would leak.
+                    if (logFd !== undefined) {
+                        try { closeSync(logFd); } catch { /* already closed */ }
+                        logFd = undefined;
+                    }
                     child.off("error", onError);
                     child.off("close", onClose);
                 };

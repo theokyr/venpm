@@ -2,55 +2,29 @@ import { describe, it, expect } from "vitest";
 import { createPnpmEnvForNonInteractiveYes } from "../../src/cli/pnpm-env.js";
 
 describe("createPnpmEnvForNonInteractiveYes", () => {
-    it("sets CI=true when --yes runs without a TTY and CI is unset", () => {
+    it("sets CI=true when --yes is used and CI is unset", () => {
         expect(
-            createPnpmEnvForNonInteractiveYes(
-                { yes: true },
-                { stdoutIsTTY: false, ci: undefined }
-            )
+            createPnpmEnvForNonInteractiveYes({ yes: true })
         ).toEqual({ CI: "true" });
     });
 
     it("treats JSON modes as yes for non-interactive pnpm", () => {
         expect(
-            createPnpmEnvForNonInteractiveYes(
-                { json: true },
-                { stdoutIsTTY: false, ci: undefined }
-            )
+            createPnpmEnvForNonInteractiveYes({ json: true })
         ).toEqual({ CI: "true" });
 
         expect(
-            createPnpmEnvForNonInteractiveYes(
-                { jsonStream: true },
-                { stdoutIsTTY: false, ci: undefined }
-            )
+            createPnpmEnvForNonInteractiveYes({ jsonStream: true })
         ).toEqual({ CI: "true" });
     });
 
-    it("preserves an existing CI value by not overriding it", () => {
-        expect(
-            createPnpmEnvForNonInteractiveYes(
-                { yes: true },
-                { stdoutIsTTY: false, ci: "false" }
-            )
-        ).toBeUndefined();
-    });
-
-    it("leaves interactive rebuilds unchanged", () => {
-        expect(
-            createPnpmEnvForNonInteractiveYes(
-                { yes: true },
-                { stdoutIsTTY: true, ci: undefined }
-            )
-        ).toBeUndefined();
+    it("overrides CI=false because explicit --yes authorizes pnpm's purge", () => {
+        expect(createPnpmEnvForNonInteractiveYes({ yes: true })).toEqual({ CI: "true" });
     });
 
     it("does not set CI without explicit yes semantics", () => {
         expect(
-            createPnpmEnvForNonInteractiveYes(
-                {},
-                { stdoutIsTTY: false, ci: undefined }
-            )
+            createPnpmEnvForNonInteractiveYes({})
         ).toBeUndefined();
     });
 });

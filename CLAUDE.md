@@ -29,7 +29,8 @@ src/
     registry.ts                  # Fetch + parse + cache plugin indexes from repos
     resolver.ts                  # Version resolution, dependency graph (topological sort), install plan
     fetcher.ts                   # Git clone (sparse checkout for monorepos), tarball extract, local symlink
-    builder.ts                   # Vencord pnpm build, deploy dist, Discord restart
+    builder.ts                   # Vencord pnpm build, deploy dist, verified Discord restart
+    launch.ts                    # Platform launch planning + verified start (see Restart Verification)
     cache.ts                     # HTTP index caching with ETag/Last-Modified
     prompt.ts                    # Interactive prompts (--yes auto-confirms, non-TTY errors)
     ansi.ts                      # ANSI 24-bit color (Carbon Forest Amber palette)
@@ -140,6 +141,27 @@ The JSON Schema at `schemas/v1/plugins.schema.json` is the primary deliverable. 
 
 **macOS gotcha — App Management (Sequoia+):** modifying `/Applications/Discord.app/Contents/` requires terminal-specific App Management permission (System Settings → Privacy & Security → App Management → enable the running terminal). This is separate from SIP; root does NOT bypass it. Without the grant, inject surfaces the underlying `EPERM` from the rename. Callers (e.g. the macOS installer) should print a preflight notice on darwin >= 15.
 
+## Restart Verification (v0.4.3+)
+
+`venpm rebuild --restart` never reports a restart it did not confirm. `src/core/launch.ts` owns two things:
+
+**1. Where the window goes (`resolveLaunchPlan`, pure, per-platform).**
+
+| Platform | Behaviour |
+|----------|-----------|
+| Linux | Uses this shell's `DISPLAY` if non-empty. Otherwise imports the desktop session's env from `systemctl --user show-environment` (`DISPLAY`, `WAYLAND_DISPLAY`, `XAUTHORITY`, `XDG_RUNTIME_DIR`, `DBUS_SESSION_BUS_ADDRESS`). Fails with a clear message if neither has a display. |
+| macOS | App-bundle binaries launch via `open -a <bundle>` so launchd starts them inside the GUI session; a direct spawn from ssh/cron has no WindowServer connection. |
+| Windows | Direct spawn; liveness comes from `tasklist`. |
+
+**2. Whether it actually started (`launchDiscordVerified`).** Spawn → poll until a Discord process appears (`startupTimeoutMs`, default 20 s) → require it to still be alive after a settle window (`settleMs`, default 4 s). The child's output goes to `~/.local/state/venpm/discord-launch.log` (XDG state dir; `~/Library/Logs/venpm` on macOS) and the error quotes its tail. Failures surface as `RESTART_FAILED`, never `BUILD_FAILED` — the deploy is still valid.
+
+**Invariants — both were real, observed failures:**
+- An **empty** `DISPLAY` is not an absent one. Electron reads `DISPLAY=""` as "use X11" and aborts with "Missing X server or $DISPLAY" ~1 s after spawn; it must be *unset*, not overwritten with a guess.
+- **Never force a display backend flag.** `--ozone-platform=wayland` on a session whose apps run under Xwayland crash-loops the GPU process (renderer SIGSEGV, exit 139) and hangs Discord on "Starting...". Inherit the session's real variables instead; only a session with no X display at all gets the conservative `--ozone-platform-hint=auto`.
+- A **stale inherited `WAYLAND_DISPLAY`** must not outrank the session. Agent shells routinely carry one while the desktop actually uses `DISPLAY=:1`.
+
+`venpm doctor` reports the resolved launch environment ("using desktop session display (:1)"), so it can be used as a preflight before any automated redeploy.
+
 ## Config & State
 
 Single directory per platform:
@@ -190,6 +212,7 @@ Full spec: see the venpm-docs repository for design documentation.
 | `ALREADY_INJECTED` | Target Discord app already patched | `venpm uninject` |
 | `NOT_INJECTED` | Target Discord app is not patched | `venpm inject` |
 | `PLATFORM_UNSUPPORTED` | Native inject unsupported on this OS/install | Use Vencord's `pnpm inject` fallback |
+| `RESTART_FAILED` | Build and deploy succeeded, Discord did not come back | Start Discord yourself, or `venpm doctor` |
 
 ## Published Package
 

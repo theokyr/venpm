@@ -3,7 +3,7 @@ import type { GlobalOptions } from "../core/types.js";
 import { loadConfig } from "../core/config.js";
 import { getConfigPath } from "../core/paths.js";
 import { detectVencordPath, detectDiscordBinary } from "../core/detect.js";
-import { buildAndDeploy } from "../core/builder.js";
+import { buildAndDeploy, restartDiscord } from "../core/builder.js";
 import { ErrorCode, makeError, exitCodeForError } from "../core/errors.js";
 import { createRealIOContext } from "./context.js";
 import { createPnpmEnvForNonInteractiveYes } from "./pnpm-env.js";
@@ -50,10 +50,11 @@ export function registerRebuildCommand(program: Command): void {
 
             const p = renderer.progress("rebuild", `Building Vencord at ${vencordPath}...`);
 
+            // Build and deploy first, restart second: a restart failure must not be
+            // reported as a build failure, and the deploy is still valid without it.
+            let result: Awaited<ReturnType<typeof buildAndDeploy>>;
             try {
-                const result = await buildAndDeploy(ctx.fs, ctx.shell, vencordPath, {
-                    restart: shouldRestart,
-                    discordBinary: discordBinary ?? undefined,
+                result = await buildAndDeploy(ctx.fs, ctx.shell, vencordPath, {
                     pnpmEnv: createPnpmEnvForNonInteractiveYes(globalOpts),
                 });
 
@@ -65,21 +66,40 @@ export function registerRebuildCommand(program: Command): void {
                     renderer.warn("Deploy target not found — skipped copy step");
                 }
 
-                if (result.restarted) {
-                    renderer.text("Discord restarted");
-                }
-
-                renderer.finish(true, {
-                    built: true,
-                    deployed: result.deployed,
-                    restarted: result.restarted,
-                });
             } catch (err) {
                 p.fail("Build failed");
                 renderer.error(makeError(ErrorCode.BUILD_FAILED, `Build failed: ${(err as Error).message}`));
                 renderer.finish(false);
                 process.exitCode = exitCodeForError(ErrorCode.BUILD_FAILED);
                 return;
+            }
+
+            if (!shouldRestart || !discordBinary) {
+                renderer.finish(true, { built: true, deployed: result.deployed, restarted: false, restartedPids: [] });
+                return;
+            }
+
+            const rp = renderer.progress("restart", "Restarting Discord...");
+            try {
+                const verification = await restartDiscord(ctx.fs, ctx.shell, discordBinary);
+                const pids = verification.pids.length ? ` (PID ${verification.pids.join(", ")})` : "";
+                rp.succeed(`Discord restarted and verified running${pids}`);
+                renderer.finish(true, {
+                    built: true,
+                    deployed: result.deployed,
+                    restarted: true,
+                    restartedPids: verification.pids,
+                });
+            } catch (err) {
+                rp.fail("Discord restart failed");
+                renderer.error(makeError(ErrorCode.RESTART_FAILED, (err as Error).message));
+                renderer.finish(false, {
+                    built: true,
+                    deployed: result.deployed,
+                    restarted: false,
+                    restartedPids: [],
+                });
+                process.exitCode = exitCodeForError(ErrorCode.RESTART_FAILED);
             }
         });
 }

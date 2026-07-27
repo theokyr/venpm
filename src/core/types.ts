@@ -154,13 +154,27 @@ export interface GitClient {
     checkout(repoPath: string, ref: string): Promise<void>;
 }
 
+export interface SpawnOptions {
+    cwd?: string;
+    detached?: boolean;
+    env?: Record<string, string>;
+    /**
+     * Environment variables to remove from the child's environment.
+     * Needed because an *empty* DISPLAY is not the same as an unset one:
+     * Electron treats `DISPLAY=""` as "use X11" and exits immediately.
+     */
+    unsetEnv?: string[];
+    /** Append the child's stdout/stderr here instead of discarding them. */
+    logFile?: string;
+}
+
 export interface ShellRunner {
     exec(cmd: string, args: string[], options?: { cwd?: string; env?: Record<string, string> }): Promise<{
         stdout: string;
         stderr: string;
         exitCode: number;
     }>;
-    spawn(cmd: string, args: string[], options?: { cwd?: string; detached?: boolean; env?: Record<string, string> }): Promise<void>;
+    spawn(cmd: string, args: string[], options?: SpawnOptions): Promise<void>;
 }
 
 export interface Prompter {

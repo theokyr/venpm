@@ -8,6 +8,7 @@ import {
     checkGitAvailable,
     checkPnpmAvailable,
 } from "../core/detect.js";
+import { resolveLaunchPlan, readSessionEnv, type Platform } from "../core/launch.js";
 import { createRealIOContext } from "./context.js";
 import { createRequire } from "node:module";
 
@@ -73,11 +74,28 @@ export function registerDoctorCommand(program: Command): void {
                 discordStatus = "not found";
             }
 
+            // Can this shell actually launch Discord? Agent and CI shells often
+            // cannot, and finding out during a restart is far too late.
+            const platform = process.platform as Platform;
+            let plan = resolveLaunchPlan(platform, process.env, discordBinary ?? "discord");
+            if (platform === "linux" && !process.env["DISPLAY"]) {
+                // Same fallback a restart would take, so doctor reports reality.
+                plan = resolveLaunchPlan(
+                    platform,
+                    process.env,
+                    discordBinary ?? "discord",
+                    await readSessionEnv(ctx.shell),
+                );
+            }
+            const launchSigil = plan.problem ? fail : ok;
+            const launchStatus = plan.problem ?? plan.note ?? "can launch Discord";
+
             renderer.keyValue([
                 [`${gitOk ? ok : fail} git`, gitOk ? "available" : "not found"],
                 [`${pnpmOk ? ok : fail} pnpm`, pnpmOk ? "available" : "not found"],
                 [`${vencordSigil} Vencord path`, vencordStatus],
                 [`${discordSigil} Discord binary`, discordStatus],
+                [`${launchSigil} Launch environment`, launchStatus],
                 [`${repoCount > 0 ? ok : warn} Repositories`, `${repoCount} configured`],
                 [`${ok} venpm`, venpmVersion],
             ]);
@@ -87,6 +105,9 @@ export function registerDoctorCommand(program: Command): void {
                 pnpm: pnpmOk,
                 vencordPath,
                 discordBinary,
+                canLaunchDiscord: plan.problem === null,
+                launchProblem: plan.problem,
+                launchArgs: plan.args,
                 repos: repoCount,
                 venpmVersion,
             });

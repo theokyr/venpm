@@ -24,6 +24,7 @@ export const ErrorCode = {
     ALREADY_INJECTED: "ALREADY_INJECTED",
     NOT_INJECTED: "NOT_INJECTED",
     PLATFORM_UNSUPPORTED: "PLATFORM_UNSUPPORTED",
+    RESTART_FAILED: "RESTART_FAILED",
 } as const;
 
 export type ErrorCodeValue = typeof ErrorCode[keyof typeof ErrorCode];
@@ -46,6 +47,7 @@ const DEFAULT_SUGGESTIONS: Record<string, string> = {
     ALREADY_INJECTED: "Run: venpm uninject to remove the existing patch",
     NOT_INJECTED: "Run: venpm inject to patch Discord",
     PLATFORM_UNSUPPORTED: "Native inject supports macOS and standard Linux Discord installs; fall back to Vencord's pnpm inject on other platforms",
+    RESTART_FAILED: "The build and deploy succeeded — only the restart failed. Start Discord yourself, or run venpm doctor to check the launch environment",
 };
 
 export const ExitCode = {
@@ -63,6 +65,7 @@ export function exitCodeForError(code: ErrorCodeValue): number {
         case ErrorCode.BUILD_FAILED:
         case ErrorCode.DISCORD_NOT_FOUND:
         case ErrorCode.PLATFORM_UNSUPPORTED:
+        case ErrorCode.RESTART_FAILED:
             return ExitCode.ENV_ERROR;
         default:
             return ExitCode.COMMAND_ERROR;
