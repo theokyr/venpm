@@ -17,7 +17,11 @@ const INVALID_INDEX = join(import.meta.dirname, "..", "fixtures", "indexes", "in
 function makeEnv(xdgConfigHome: string, vencordPath: string): NodeJS.ProcessEnv {
     return {
         ...process.env,
+        // XDG_CONFIG_HOME sandboxes the config on Linux. macOS deliberately
+        // ignores XDG and uses ~/Library/Application Support, so HOME has to
+        // move too or the run escapes the temp dir onto the real config.
         XDG_CONFIG_HOME: xdgConfigHome,
+        HOME: xdgConfigHome,
         VENPM_VENCORD_PATH: vencordPath,
     };
 }

@@ -84,14 +84,21 @@ export async function findDiscordProcesses(
     fs: FileSystem,
     shell: ShellRunner,
     configuredBinary?: string | null,
+    /**
+     * Which platform's discovery to use. Defaults to the host's, but callers
+     * that already resolve a platform must pass it — otherwise a caller
+     * targeting Linux silently gets the host's discovery instead, which is
+     * how the launch tests hung when run on macOS.
+     */
+    platform: NodeJS.Platform = process.platform,
 ): Promise<DiscordProcess[]> {
-    if (process.platform === "linux") {
+    if (platform === "linux") {
         return findDiscordProcessesLinux(fs, configuredBinary);
     }
-    if (process.platform === "darwin") {
+    if (platform === "darwin") {
         return findDiscordProcessesMacOS(shell, configuredBinary);
     }
-    if (process.platform === "win32") {
+    if (platform === "win32") {
         return findDiscordProcessesWin32(shell, configuredBinary);
     }
     return [];

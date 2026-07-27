@@ -218,7 +218,7 @@ export async function launchDiscordVerified(
     const deadline = Date.now() + startupTimeout;
     let pids: number[] = [];
     while (Date.now() < deadline) {
-        pids = (await findDiscordProcesses(fs, shell, binary)).map(p => p.pid);
+        pids = (await findDiscordProcesses(fs, shell, binary, platform)).map(p => p.pid);
         if (pids.length > 0) break;
         await sleep(250);
     }
@@ -232,7 +232,7 @@ export async function launchDiscordVerified(
 
     // Phase 2 — it must survive the settle window, not just appear.
     await sleep(settleMs);
-    const alive = (await findDiscordProcesses(fs, shell, binary)).map(p => p.pid);
+    const alive = (await findDiscordProcesses(fs, shell, binary, platform)).map(p => p.pid);
     if (alive.length === 0) {
         throw new Error(
             `Discord started (PID ${pids.join(", ")}) but exited within ${Math.round(settleMs / 1000)}s.` +
